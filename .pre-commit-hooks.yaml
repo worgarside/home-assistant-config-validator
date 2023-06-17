@@ -2,7 +2,7 @@
   - id: validate
     name: Home Assistant Config Validator
     description: Validate the Home Assistant configuration
-    entry: python home_assistant_config_validator/main.py
+    entry: poetry run validate
     language: python
     args: []
     additional_dependencies: []

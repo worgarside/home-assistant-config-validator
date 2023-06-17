@@ -7,8 +7,11 @@ license = "MIT"
 readme = "README.md"
 packages = [{include = "home_assistant_config_validator"}]
 
+[tool.poetry.scripts]
+validate = "home_assistant_config_validator.validate_entities:main"
+
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 homeassistant = "2023.5.4"
 icmplib = "^3.0.3"
 voluptuous = "^0.13.1"
@@ -27,6 +30,9 @@ psutil = "^5.9.5"
 psutil-home-assistant = "^0.0.1"
 wg-utilities = "^3.7.0"
 xmltodict = "^0.13.0"
+
+[tool.poetry.group.dev.dependencies]
+pylint-strict-informational = "^0.1"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

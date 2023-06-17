@@ -10,7 +10,11 @@ from pathlib import Path
 from re import sub
 from typing import TypedDict
 
-from constants import (
+from ha_yaml_loader import Secret, load_yaml
+from voluptuous.error import Invalid
+from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
+
+from .const import (
     DOMAIN_SCHEMA_MAP,
     ENTITIES_DIR,
     REPO_PATH,
@@ -19,9 +23,6 @@ from constants import (
     SCRIPT_SERVICES,
     VALIDATOR_CONFIGS,
 )
-from ha_yaml_loader import Secret, load_yaml
-from voluptuous.error import Invalid
-from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
 
 
 def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:

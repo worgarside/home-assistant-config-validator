@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, ClassVar, cast
 
 from attr import dataclass
-from constants import INTEGS_DIR, REPO_PATH
+from const import INTEGS_DIR, REPO_PATH  # type: ignore[import]
 from wg_utilities.functions.json import JSONObj, JSONVal
 from yaml import SafeLoader, ScalarNode, load
 
