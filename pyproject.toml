@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "home-assistant-config-validator"
+version = "0.1.0"
+description = "Custom validator for my Home Assistant configuration"
+authors = ["Will Garside <worgarside@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "home_assistant_config_validator"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
