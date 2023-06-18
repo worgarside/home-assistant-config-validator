@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 from json import loads
 from logging import getLogger
 from pathlib import Path
+from typing import TypedDict
 from unittest.mock import MagicMock
 
 from wg_utilities.loggers import add_stream_handler
@@ -173,19 +174,43 @@ for component_name, cc_package in component_modules.items():
     )
 
 
-SCRIPT_NAMES = [
-    f"script.{script_file.stem}"
-    for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
-]
+class KnownEntityType(TypedDict):
+    """Known entity type."""
 
-SCRIPT_NAME_PATTERN = re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE)
+    names: list[str]
+    name_pattern: re.Pattern[str]
+    services: list[str]
 
-SCRIPT_SERVICES = [
-    "script.reload",
-    "script.toggle",
-    "script.turn_off",
-    "script.turn_on",
-]
+
+KNOWN_ENTITIES: dict[str, KnownEntityType] = {
+    "automation": {
+        "names": [
+            f"automation.{automation_file.stem}"
+            for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+        ],
+        "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+        "services": [
+            "automation.reload",
+            "automation.toggle",
+            "automation.turn_off",
+            "automation.turn_on",
+        ],
+    },
+    "script": {
+        "names": [
+            f"script.{script_file.stem}"
+            for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
+        ],
+        "name_pattern": re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+        "services": [
+            "script.reload",
+            "script.toggle",
+            "script.turn_off",
+            "script.turn_on",
+        ],
+    },
+}
+
 
 __all__ = [
     "CUSTOM_VALIDATIONS",
@@ -193,7 +218,5 @@ __all__ = [
     "ENTITIES_DIR",
     "INTEGRATIONS_DIR",
     "REPO_PATH",
-    "SCRIPT_NAME_PATTERN",
-    "SCRIPT_NAMES",
-    "SCRIPT_SERVICES",
+    "KNOWN_ENTITIES",
 ]
