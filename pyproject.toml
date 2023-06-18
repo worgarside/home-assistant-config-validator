@@ -7,9 +7,104 @@ license = "MIT"
 readme = "README.md"
 packages = [{include = "home_assistant_config_validator"}]
 
+[tool.poetry.scripts]
+validate-entities = "home_assistant_config_validator.validate_entities:main"
+
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "==3.10.*"
+homeassistant = "2023.5.4"
+icmplib = "^3.0.3"
+voluptuous = "^0.13.1"
+locationsharinglib = "5.0.1"
+bleak = "^0.20.2"
+bleak-retry-connector = "^3.0.2"
+bluetooth-adapters = "^0.15.4"
+pyserial = "^3.5"
+bluetooth-auto-recovery = "^1.2.0"
+bt-proximity = "^0.2.1"
+sqlalchemy = "^2.0.16"
+fnv-hash-fast = "^0.3.1"
+jsonpath = "^0.82"
+numpy = "^1.24.3"
+psutil = "^5.9.5"
+psutil-home-assistant = "^0.0.1"
+wg-utilities = "^3.7.0"
+xmltodict = "^0.13.0"
+gitpython = "^3.1.31"
+
+[tool.poetry.group.dev.dependencies]
+pylint-strict-informational = "^0.1"
 
 [build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+requires = [
+  "poetry-core",
+]
+
+[tool.black]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | Pipfile\.lock
+)/
+'''
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+show_error_codes = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+disallow_untyped_defs = true
+
+[tool.codespell]
+ignore-words-list = "hass"
+skip = '*.json,*.csv,*.xml,*.lock'
+
+[tool.pycln]
+path = "*"
+expand_stars = true
+all = true
+no_gitignore = false
+
+[tool.ruff]
+# Longer line length to avoid throwing errors in case where black doesn't
+# wraps the lines (e.g. a long URL).
+line-length = 120
+select = [
+    # https://github.com/charliermarsh/ruff#supported-rules
+    "B",   # Flake8 bugbear
+    "C4",  # Flake8 comprehensions
+    # "D",   # pydocstyle
+    "E",   # Pycodestyle errors
+    "ERA", # Eradicate commented out code
+    "F",   # Pyflakes
+    "N",   # PEP8 Naming
+    "RUF", # Ruff-specific rules
+    "UP",  # PyUpgrade
+    "W",   # Pycodestyle warnings
+]
+ignore = [
+    "D107",  # public-init
+    "D202",  # no-blank-line-after-function
+    "D203",  # one-blank-line-before-class
+    "D213",  # multi-line-summary-second-line
+    "D400",  # first-line-end-with-period
+    "D406",  # new-line-after-section-name
+    "D407",  # dashed-underline-after-section
+    "UP037", # quoted-annotation
+]
