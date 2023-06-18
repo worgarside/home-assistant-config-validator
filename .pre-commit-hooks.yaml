@@ -1,8 +1,8 @@
 ---
-  - id: validate
+  - id: validate-entities
     name: Home Assistant Config Validator
     description: Validate the Home Assistant configuration
-    entry: poetry run validate
+    entry: poetry run validate-entities
     language: python
     args: []
     additional_dependencies: []
