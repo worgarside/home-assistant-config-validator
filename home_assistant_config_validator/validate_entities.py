@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from argparse import ArgumentParser
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -349,6 +350,26 @@ class ValidatorConfig:
 
 def main() -> None:
     """Validate all entities."""
+
+    parser = ArgumentParser(description="Custom Component Parser")
+
+    parser.add_argument(
+        "-c",
+        "--custom-components",
+        type=str,
+        required=False,
+        help="Comma or space-delimited list of repo URLs",
+        default="",
+    )
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    # Call the parse_custom_components function to process the input
+    custom_components = args.custom_components.replace(",", " ").split()
+
+    print(custom_components)
+
     custom_validation_configs = {
         domain: ValidatorConfig(domain=domain, **json_config)
         for domain, json_config in loads(VALIDATOR_CONFIGS.read_text()).items()

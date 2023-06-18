@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{include = "home_assistant_config_validator"}]
 
 [tool.poetry.scripts]
-validate = "home_assistant_config_validator.validate_entities:main"
+validate-entities = "home_assistant_config_validator.validate_entities:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
