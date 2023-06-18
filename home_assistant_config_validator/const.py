@@ -2,111 +2,138 @@
 
 # pylint: disable=wrong-import-position
 # mypy: disable-error-code="import"
+
 from __future__ import annotations
 
 import re
 import sys
+from argparse import ArgumentParser
+from json import loads
+from logging import getLogger
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from homeassistant.components.binary_sensor import (
+from wg_utilities.loggers import add_stream_handler
+
+from .custom_components_loader import import_custom_components
+
+# Home Assistant Imports
+
+# Mock out packages that are not installable in a CI environment and would otherwise
+# cause the custom components to fail to load
+for package_to_mock in (
+    "bluetooth",
+    "bluetooth._bluetooth",
+):
+    sys.modules[package_to_mock] = MagicMock()
+
+from homeassistant.components.binary_sensor import (  # noqa: E402
     PLATFORM_SCHEMA as BINARY_SENSOR_SCHEMA,
 )
-from homeassistant.components.bluetooth_le_tracker.device_tracker import (
+from homeassistant.components.bluetooth_le_tracker.device_tracker import (  # noqa: E402
     PLATFORM_SCHEMA as BLUETOOTH_LE_TRACKER_SCHEMA,
 )
-from homeassistant.components.device_tracker import (
+from homeassistant.components.bluetooth_tracker.device_tracker import (  # noqa: E402
+    PLATFORM_SCHEMA as BLUETOOTH_TRACKER_SCHEMA,
+)
+from homeassistant.components.device_tracker import (  # noqa: E402
     PLATFORM_SCHEMA as DEVICE_TRACKER_SCHEMA,
 )
-from homeassistant.components.google_maps.device_tracker import (
+from homeassistant.components.google_maps.device_tracker import (  # noqa: E402
     PLATFORM_SCHEMA as GOOGLE_MAPS_SCHEMA,
 )
-from homeassistant.components.history_stats.sensor import (
+from homeassistant.components.history_stats.sensor import (  # noqa: E402
     PLATFORM_SCHEMA as SENSOR_HISTORY_STATS_SCHEMA,
 )
-from homeassistant.components.input_boolean import InputBooleanStorageCollection
-from homeassistant.components.input_button import InputButtonStorageCollection
-from homeassistant.components.input_datetime import DateTimeStorageCollection
-from homeassistant.components.input_number import NumberStorageCollection
-from homeassistant.components.input_select import InputSelectStorageCollection
-from homeassistant.components.input_text import InputTextStorageCollection
-from homeassistant.components.london_air.sensor import (
+from homeassistant.components.input_boolean import (  # noqa: E402
+    InputBooleanStorageCollection,
+)
+from homeassistant.components.input_button import (  # noqa: E402
+    InputButtonStorageCollection,
+)
+from homeassistant.components.input_datetime import (  # noqa: E402
+    DateTimeStorageCollection,
+)
+from homeassistant.components.input_number import NumberStorageCollection  # noqa: E402
+from homeassistant.components.input_select import (  # noqa: E402
+    InputSelectStorageCollection,
+)
+from homeassistant.components.input_text import InputTextStorageCollection  # noqa: E402
+from homeassistant.components.london_air.sensor import (  # noqa: E402
     PLATFORM_SCHEMA as SENSOR_LONDON_AIR_SCHEMA,
 )
-from homeassistant.components.mqtt.binary_sensor import (
+from homeassistant.components.mqtt.binary_sensor import (  # noqa: E402
     PLATFORM_SCHEMA_MODERN as MQTT_BINARY_SENSOR_SCHEMA,
 )
-from homeassistant.components.mqtt.sensor import (
+from homeassistant.components.mqtt.sensor import (  # noqa: E402
     PLATFORM_SCHEMA_MODERN as MQTT_SENSOR_SCHEMA,
 )
-from homeassistant.components.ping.binary_sensor import PLATFORM_SCHEMA as PING_SCHEMA
-from homeassistant.components.rest.sensor import PLATFORM_SCHEMA as SENSOR_REST_SCHEMA
-from homeassistant.components.rest_command import CONFIG_SCHEMA as REST_COMMAND_SCHEMA
-from homeassistant.components.script.config import SCRIPT_ENTITY_SCHEMA as SCRIPT_SCHEMA
-from homeassistant.components.systemmonitor.sensor import (
+from homeassistant.components.ping.binary_sensor import (  # noqa: E402
+    PLATFORM_SCHEMA as PING_SCHEMA,
+)
+from homeassistant.components.rest.sensor import (  # noqa: E402
+    PLATFORM_SCHEMA as SENSOR_REST_SCHEMA,
+)
+from homeassistant.components.rest_command import (  # noqa: E402
+    CONFIG_SCHEMA as REST_COMMAND_SCHEMA,
+)
+from homeassistant.components.script.config import (  # noqa: E402
+    SCRIPT_ENTITY_SCHEMA as SCRIPT_SCHEMA,
+)
+from homeassistant.components.systemmonitor.sensor import (  # noqa: E402
     PLATFORM_SCHEMA as SENSOR_SYSTEMMONITOR_SCHEMA,
 )
-from homeassistant.components.template.binary_sensor import (
+from homeassistant.components.template.binary_sensor import (  # noqa: E402
     BINARY_SENSOR_SCHEMA as TEMPLATE_BINARY_SENSOR_SCHEMA,
 )
-from homeassistant.components.template.cover import COVER_SCHEMA
-from homeassistant.components.template.sensor import (
+from homeassistant.components.template.cover import COVER_SCHEMA  # noqa: E402
+from homeassistant.components.template.sensor import (  # noqa: E402
     SENSOR_SCHEMA as TEMPLATE_SENSOR_SCHEMA,
 )
-from homeassistant.components.universal.media_player import (
+from homeassistant.components.universal.media_player import (  # noqa: E402
     PLATFORM_SCHEMA as UNIVERSAL_MEDIA_PLAYER_SCHEMA,
 )
 
 # This import order fixes an issue with `websocket_api.websocket_command` not being
 # loaded correctly; not sure why
-from homeassistant.components.automation.config import (  # isort:skip
+from homeassistant.components.automation.config import (  # isort:skip # noqa: E402
     PLATFORM_SCHEMA as AUTOMATION_SCHEMA,
 )
 
-# Mock out packages that are not installable in a CI environment and would otherwise
-# cause the custom component to fail to load
-for package in (
-    "bluetooth",
-    "bluetooth._bluetooth",
-):
-    sys.modules[package] = MagicMock()
+# Args
+REPO_PATH = Path().cwd()
 
 
-from homeassistant.components.bluetooth_tracker.device_tracker import (  # noqa: E402
-    PLATFORM_SCHEMA as BLUETOOTH_TRACKER_SCHEMA,
+parser = ArgumentParser(description="Custom Component Parser")
+
+parser.add_argument(
+    "-c",
+    "--config-path",
+    type=Path,
+    required=False,
+    help="Comma or space-delimited list of `<repo URL>|<schema import path>` pairs",
+    default=REPO_PATH / "config_validator.json",
 )
 
-REPO_PATH = Path(__file__).parents[2]
+args, _ = parser.parse_known_args()
 
-# Allow custom components to be loaded
-sys.path.append(
-    custom_components_path_str := (REPO_PATH / "custom_components").as_posix()
-)
+_BASE_CONFIG = loads(args.config_path.read_text())
 
-NO_SCHEMA_AVAILABLE = object()
-try:
-    from feedparser.sensor import PLATFORM_SCHEMA as SENSOR_FEEDPARSER_SCHEMA
-    from var import CONFIG_SCHEMA as VAR_SCHEMA
-except ImportError as exc:
-    if not re.fullmatch(
-        r"^No module named (?:'|\")([a-z_]+[a-z0-9_-]*)(?:'|\")$",
-        str(exc),
-        flags=re.IGNORECASE,
-    ):
-        raise
-
-    SENSOR_FEEDPARSER_SCHEMA = NO_SCHEMA_AVAILABLE
-    VAR_SCHEMA = NO_SCHEMA_AVAILABLE
-
-    # raise FileNotFoundError(
-    #     f"Directory `{custom_components_path_str}` not found; please create it"  # noqa: ERA001,E501  # pylint: disable=line-too-long
-    #     " and try again"
-    # ) from exc
+CUSTOM_VALIDATIONS = _BASE_CONFIG["customValidators"]
+CUSTOM_COMPONENTS_CONFIG = _BASE_CONFIG["customComponents"]
 
 
-VALIDATOR_CONFIGS = Path(__file__).parent / "validator_configs.json"
+# Custom Components Imports
+
+component_modules = import_custom_components(CUSTOM_COMPONENTS_CONFIG)
+
+LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")
+add_stream_handler(LOGGER)
+
+
 ENTITIES_DIR = REPO_PATH / "entities"
-INTEGS_DIR = REPO_PATH / "integrations"
+INTEGRATIONS_DIR = REPO_PATH / "integrations"
 
 DOMAIN_SCHEMA_MAP = {
     "automation": AUTOMATION_SCHEMA,
@@ -129,25 +156,44 @@ DOMAIN_SCHEMA_MAP = {
     "rest_command": REST_COMMAND_SCHEMA,
     "script": SCRIPT_SCHEMA,
     "sensor.history_stats": SENSOR_HISTORY_STATS_SCHEMA,
-    "sensor.feedparser": SENSOR_FEEDPARSER_SCHEMA,
     "sensor.london_air": SENSOR_LONDON_AIR_SCHEMA,
     "sensor.rest": SENSOR_REST_SCHEMA,
     "sensor.systemmonitor": SENSOR_SYSTEMMONITOR_SCHEMA,
     "template.binary_sensor": TEMPLATE_BINARY_SENSOR_SCHEMA,
     "template.sensor": TEMPLATE_SENSOR_SCHEMA,
-    "var": VAR_SCHEMA,
 }
+
+for component_name, cc_package in component_modules.items():
+    domain = CUSTOM_COMPONENTS_CONFIG[component_name].get("domain", component_name)
+
+    DOMAIN_SCHEMA_MAP[domain] = cc_package["schema_var"]
+    LOGGER.debug(
+        "Loaded schema for custom component %r",
+        domain,
+    )
+
 
 SCRIPT_NAMES = [
     f"script.{script_file.stem}"
     for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
 ]
 
-SCRIPT_NAME_PATTERN = re.compile(r"script\.(?P<script_name>.*)")
+SCRIPT_NAME_PATTERN = re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE)
 
 SCRIPT_SERVICES = [
     "script.reload",
     "script.toggle",
     "script.turn_off",
     "script.turn_on",
+]
+
+__all__ = [
+    "CUSTOM_VALIDATIONS",
+    "DOMAIN_SCHEMA_MAP",
+    "ENTITIES_DIR",
+    "INTEGRATIONS_DIR",
+    "REPO_PATH",
+    "SCRIPT_NAME_PATTERN",
+    "SCRIPT_NAMES",
+    "SCRIPT_SERVICES",
 ]

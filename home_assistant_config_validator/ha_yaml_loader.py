@@ -10,7 +10,7 @@ from attr import dataclass
 from wg_utilities.functions.json import JSONObj, JSONVal
 from yaml import SafeLoader, ScalarNode, load
 
-from .const import INTEGS_DIR, REPO_PATH
+from .const import INTEGRATIONS_DIR, REPO_PATH
 
 
 @dataclass
@@ -55,12 +55,12 @@ class IncludeDirList(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_list"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGS_DIR) -> list[JSONObj]:
+    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> list[JSONObj]:
         """Load the data from the directory.
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGS_DIR.
+                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             list[JSONObj]:the content of a directory as a list with each file content
@@ -98,12 +98,12 @@ class IncludeDirMergeList(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_merge_list"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGS_DIR) -> list[JSONObj]:
+    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> list[JSONObj]:
         """Load the data from the directory.
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGS_DIR.
+                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             list[JSONObj]: The content of a directory as a list by merging all files
@@ -141,12 +141,12 @@ class IncludeDirMergeNamed(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_merge_named"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGS_DIR) -> JSONObj:
+    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> JSONObj:
         """Load the data from the directory.
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGS_DIR.
+                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             JSONObj: The content of a directory as a dictionary by merging all files
@@ -186,12 +186,12 @@ class IncludeDirNamed(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_named"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGS_DIR) -> JSONObj:
+    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> JSONObj:
         """Load the data from the directory.
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGS_DIR.
+                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             JSONObj: The content of a directory as a dictionary with each file content
