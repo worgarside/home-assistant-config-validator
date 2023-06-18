@@ -4,6 +4,7 @@
     description: Validate the Home Assistant configuration
     entry: poetry run validate-entities
     language: python
-    args: []
+    args:
+      - -f
     additional_dependencies: []
     always_run: true

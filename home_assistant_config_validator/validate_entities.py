@@ -362,6 +362,15 @@ def main() -> None:
         default="",
     )
 
+    parser.add_argument(
+        "-f",
+        "--files",
+        type=str,
+        required=False,
+        help="Comma or space-delimited list of files",
+        default="",
+    )
+
     # Parse the command-line arguments
     args = parser.parse_args()
 
