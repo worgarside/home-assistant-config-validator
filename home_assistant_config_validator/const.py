@@ -83,6 +83,7 @@ sys.path.append(
     custom_components_path_str := (REPO_PATH / "custom_components").as_posix()
 )
 
+NO_SCHEMA_AVAILABLE = object()
 try:
     from feedparser.sensor import PLATFORM_SCHEMA as SENSOR_FEEDPARSER_SCHEMA
     from var import CONFIG_SCHEMA as VAR_SCHEMA
@@ -94,10 +95,14 @@ except ImportError as exc:
     ):
         raise
 
-    raise FileNotFoundError(
-        f"Directory `{custom_components_path_str}` not found; please create it"
-        " and try again"
-    ) from exc
+    SENSOR_FEEDPARSER_SCHEMA = NO_SCHEMA_AVAILABLE
+    VAR_SCHEMA = NO_SCHEMA_AVAILABLE
+
+    # raise FileNotFoundError(
+    #     f"Directory `{custom_components_path_str}` not found; please create it"  # noqa: ERA001,E501  # pylint: disable=line-too-long
+    #     " and try again"
+    # ) from exc
+
 
 VALIDATOR_CONFIGS = Path(__file__).parent / "validator_configs.json"
 ENTITIES_DIR = REPO_PATH / "entities"
