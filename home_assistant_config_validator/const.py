@@ -24,6 +24,7 @@ from .custom_components_loader import import_custom_components
 for package_to_mock in (
     "bluetooth",
     "bluetooth._bluetooth",
+    "numpy"  # too big and unused anyway
 ):
     sys.modules[package_to_mock] = MagicMock()
 
