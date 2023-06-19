@@ -91,10 +91,8 @@ repos:
         additional_dependencies:
           - types-PyYAML
           - wg-utilities
-          - homeassistant-stubs
           - voluptuous-stubs
           - gitpython
-
 
   - repo: local
     hooks:
