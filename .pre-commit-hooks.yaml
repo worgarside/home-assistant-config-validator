@@ -6,8 +6,11 @@
     language: python
     args: []
     additional_dependencies:
+      - gitpython
+      - homeassistant==2023.5.4
       - poetry
       - sqlalchemy
+      - wg-utilities
     always_run: true
     require_serial: true
     pass_filenames: false

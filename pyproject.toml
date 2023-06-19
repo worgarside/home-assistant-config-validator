@@ -11,10 +11,7 @@ packages = [{include = "home_assistant_config_validator"}]
 validate-entities = "home_assistant_config_validator.validate_entities:main"
 
 [tool.poetry.dependencies]
-python = "^3.11"
-wg-utilities = "^3.7.0"
-gitpython = "^3.1.31"
-homeassistant = "2023.5.4"
+python = "==3.10.*"
 
 [tool.poetry.group.dev.dependencies]
 pylint-strict-informational = "^0.1"
