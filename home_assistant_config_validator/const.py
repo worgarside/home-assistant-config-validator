@@ -51,20 +51,7 @@ for package_to_mock in (
     "serial.tools",
     "serial.tools.list_ports",
     "serial.tools.list_ports_common",
-    # "sqlalchemy",
-    # "sqlalchemy.dialects",
-    # "sqlalchemy.engine",
-    # "sqlalchemy.engine.interfaces",
-    # "sqlalchemy.engine.row",
-    # "sqlalchemy.exc",
-    # "sqlalchemy.ext",
-    # "sqlalchemy.ext.compiler",
-    # "sqlalchemy.orm",
-    # "sqlalchemy.orm.session",
-    # "sqlalchemy.schema",
-    # "sqlalchemy.sql",
-    # "sqlalchemy.sql.expression",
-    # "sqlalchemy.types",
+    "xmltodict",
 ):
     sys.modules[package_to_mock] = MagicMock()
 
