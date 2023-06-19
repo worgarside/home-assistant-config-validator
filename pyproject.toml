@@ -11,7 +11,7 @@ packages = [{include = "home_assistant_config_validator"}]
 validate-entities = "home_assistant_config_validator.validate_entities:main"
 
 [tool.poetry.dependencies]
-python = "==3.10.*"
+python = "^3.11"
 homeassistant = "2023.5.4"
 icmplib = "^3.0.3"
 voluptuous = "^0.13.1"

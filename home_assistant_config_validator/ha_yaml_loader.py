@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
-from attr import dataclass
 from wg_utilities.functions.json import JSONObj, JSONVal
 from yaml import SafeLoader, ScalarNode, load
 
