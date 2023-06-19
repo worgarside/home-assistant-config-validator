@@ -20,7 +20,6 @@ gitpython = "^3.1.31"
 
 [tool.poetry.group.dev.dependencies]
 pylint-strict-informational = "^0.1"
-sqlalchemy = "^2.0.16"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
