@@ -51,7 +51,9 @@ def import_custom_components(
     for component_name, cc_config in cc_configs.items():
         repo_name = cc_config["repoUrl"].split("/")[-1]
 
-        if not (repo_path := CC_REPO_CACHE_DIR / repo_name).is_dir():
+        if not (repo_path := CC_REPO_CACHE_DIR / repo_name).is_dir() and list(
+            CC_REPO_CACHE_DIR.iterdir()
+        ):
             LOGGER.debug(
                 "Downloading %r to %r",
                 cc_config["repoUrl"],

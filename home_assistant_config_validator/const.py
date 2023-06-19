@@ -19,12 +19,52 @@ from .custom_components_loader import import_custom_components
 
 # Home Assistant Imports
 
-# Mock out packages that are not installable in a CI environment and would otherwise
+# Mock out packages that are not required in a CI environment and would otherwise
 # cause the custom components to fail to load
 for package_to_mock in (
+    "bleak",
+    "bleak.assigned_numbers",
+    "bleak.backends",
+    "bleak.backends.bluezdbus",
+    "bleak.backends.bluezdbus.advertisement_monitor",
+    "bleak.backends.bluezdbus.scanner",
+    "bleak.backends.client",
+    "bleak.backends.device",
+    "bleak.backends.scanner",
+    "bleak.backends.service",
+    "bleak_retry_connector",
     "bluetooth",
     "bluetooth._bluetooth",
-    "numpy"  # too big and unused anyway
+    "bluetooth_adapters",
+    "bluetooth_auto_recovery",
+    "bt_proximity",
+    "dbus_fast",
+    "fnv_hash_fast",
+    "icmplib",
+    "jsonpath",
+    "locationsharinglib",
+    "locationsharinglib.locationsharinglibexceptions",
+    "numpy",
+    "psutil",
+    "psutil_home_assistant",
+    "serial",
+    "serial.tools",
+    "serial.tools.list_ports",
+    "serial.tools.list_ports_common",
+    # "sqlalchemy",
+    # "sqlalchemy.dialects",
+    # "sqlalchemy.engine",
+    # "sqlalchemy.engine.interfaces",
+    # "sqlalchemy.engine.row",
+    # "sqlalchemy.exc",
+    # "sqlalchemy.ext",
+    # "sqlalchemy.ext.compiler",
+    # "sqlalchemy.orm",
+    # "sqlalchemy.orm.session",
+    # "sqlalchemy.schema",
+    # "sqlalchemy.sql",
+    # "sqlalchemy.sql.expression",
+    # "sqlalchemy.types",
 ):
     sys.modules[package_to_mock] = MagicMock()
 
@@ -112,7 +152,7 @@ parser.add_argument(
     "--config-path",
     type=Path,
     required=False,
-    help="Comma or space-delimited list of `<repo URL>|<schema import path>` pairs",
+    help="Path to PCH config file",
     default=REPO_PATH / "config_validator.json",
 )
 
