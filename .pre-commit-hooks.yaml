@@ -6,6 +6,7 @@
     language: python
     args: []
     additional_dependencies:
+      - poetry
       - sqlalchemy
     always_run: true
     require_serial: true
