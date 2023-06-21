@@ -11,19 +11,10 @@ from pathlib import Path
 from re import sub
 from typing import TypedDict
 
-from voluptuous.error import Invalid
 from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
 
-from .const import (
-    CUSTOM_VALIDATIONS,
-    DOMAIN_SCHEMA_MAP,
-    ENTITIES_DIR,
-    REPO_PATH,
-    SCRIPT_NAME_PATTERN,
-    SCRIPT_NAMES,
-    SCRIPT_SERVICES,
-)
-from .ha_yaml_loader import Secret, load_yaml
+from .const import CUSTOM_VALIDATIONS, ENTITIES_DIR, KNOWN_ENTITIES, REPO_PATH
+from .ha_yaml_loader import load_yaml
 
 
 def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
@@ -76,7 +67,6 @@ class ValidatorConfig:
     def _validate_file(
         self: ValidatorConfig,
         *,
-        file_path: Path,
         entity_yaml: JSONObj | Iterable[JSONVal],
     ) -> tuple[list[Exception], bool]:
         """Validate a single entity file.
@@ -91,74 +81,13 @@ class ValidatorConfig:
         """
         file_issues: list[Exception] = []
 
-        match file_path.parent.relative_to(REPO_PATH).parts:
-            # `automation` and `cover` domains are only split into subdirectories for
-            # readability
-            case ("entities", "automation", *_):
-                schema_domain = "automation"
-            case ("entities", "cover", "office"):
-                schema_domain = "cover"
-            case ("entities", "device_tracker", _):
-                schema_domain = "device_tracker"
-            case ("entities", "template", "sensor", _):
-                schema_domain = "template.sensor"
-            case ("entities", "template", "triggered"):
-                # Triggered sensors are stored as lists of length 1, but should be
-                # reduced to a single dict for validation
-                if not (isinstance(entity_yaml, list) and len(entity_yaml) == 1):
-                    file_issues.append(
-                        ValueError("Triggered sensor YAML is not a list of length 1")
-                    )
-                    return file_issues, False
-
-                # TODO get this to validate the trigger too
-                entity_yaml = entity_yaml[0]["sensor"][0]
-                schema_domain = "template.sensor"
-            case ("entities", "var", _):
-                schema_domain = "var"
-            case ("entities", domain_dir):
-                schema_domain = domain_dir
-            case ("entities", domain_dir, "binary_sensor"):
-                schema_domain = f"{domain_dir}.binary_sensor"
-            case ("entities", domain_dir, "sensor"):
-                schema_domain = f"{domain_dir}.sensor"
-            case _:
-                file_issues.append(
-                    ValueError(
-                        "File is not in a valid directory (unable to derive domain)"
-                    )
-                )
-                return file_issues, False
-
         if not isinstance(entity_yaml, dict):
             file_issues.append(TypeError("Entity YAML is not a dict"))
             return file_issues, False
 
-        # Account for specific platforms within domains (e.g. binary_sensor.ping)
-        if (platform := entity_yaml.get("platform")) is not None:
-            schema_domain += f".{platform}"
-
-        # Replace secrets with their values
-        traverse_dict(
-            entity_yaml,
-            target_type=Secret,
-            target_processor_func=Secret.get_value_callback,  # type: ignore[arg-type]
-            pass_on_fail=False,
-        )
-
-        # Validate the entity against HA's schema
-        try:
-            DOMAIN_SCHEMA_MAP[schema_domain](entity_yaml)
-        except (KeyError, NotImplementedError):
-            file_issues.append(
-                NotImplementedError(f"No schema available for domain {schema_domain!r}")
-            )
-        except Invalid as exc:
-            file_issues.append(exc)
-
         return file_issues, True
 
-    def _check_script_usages(
+    def _check_known_entity_usages(
         self,
         entity_yaml: JSONObj,
     ) -> list[Exception]:
@@ -171,7 +100,7 @@ class ValidatorConfig:
             list[Exception]: A list of exceptions raised during validation
         """
 
-        script_issues: list[Exception] = []
+        known_entity_issues: list[Exception] = []
 
         def _callback(
             string: str,
@@ -179,16 +108,21 @@ class ValidatorConfig:
             dict_key: str | None = None,
             list_index: int | None = None,
         ) -> str:
-            nonlocal script_issues
+            nonlocal known_entity_issues
 
-            _ = dict_key, list_index
+            _ = list_index
 
-            if (
-                SCRIPT_NAME_PATTERN.fullmatch(string)
-                and string not in SCRIPT_NAMES
-                and string not in SCRIPT_SERVICES
-            ):
-                script_issues.append(ValueError(f"Script {string!r} is not defined"))
+            if dict_key != "entity_id":
+                return string
+
+            for domain, entity_comparands in KNOWN_ENTITIES.items():
+                if (
+                    entity_comparands["name_pattern"].fullmatch(string)
+                    and string not in entity_comparands["names"]
+                ):
+                    known_entity_issues.append(
+                        ValueError(f"{domain.title()} {string!r} is not defined")
+                    )
 
             return string
 
@@ -199,7 +133,7 @@ class ValidatorConfig:
             pass_on_fail=False,
         )
 
-        return script_issues
+        return known_entity_issues
 
     def run_custom_validations(
         self,
@@ -318,7 +252,7 @@ class ValidatorConfig:
             entity_yaml = load_yaml(file)
 
             file_issues, run_custom_validations = self._validate_file(
-                file_path=file, entity_yaml=entity_yaml
+                entity_yaml=entity_yaml
             )
 
             if run_custom_validations:
@@ -331,7 +265,7 @@ class ValidatorConfig:
                 )
 
             if isinstance(entity_yaml, dict):
-                file_issues.extend(self._check_script_usages(entity_yaml))
+                file_issues.extend(self._check_known_entity_usages(entity_yaml))
 
             if file_issues:
                 self._domain_issues[

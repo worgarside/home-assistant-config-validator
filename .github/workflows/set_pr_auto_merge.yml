@@ -1,7 +1,7 @@
 ---
 name: Set PR Auto Merge
 
-  # yamllint disable-line rule:truthy
+    # yamllint disable-line rule:truthy
 on:
   pull_request:
     types:
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # yamllint disable-line rule:line-length
+    # yamllint disable-line rule:line-length
   GITHUB_TOKEN: ${{ secrets.WORGARSIDE_TOKEN || secrets.WORGARSIDE_DEV_TOKEN || secrets.GITHUB_TOKEN }}
 
 jobs:

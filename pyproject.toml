@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "home-assistant-config-validator"
-version = "0.1.0"
+version = "1.0.0"
 description = "Custom validator for my Home Assistant configuration"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"
@@ -11,26 +11,10 @@ packages = [{include = "home_assistant_config_validator"}]
 validate-entities = "home_assistant_config_validator.validate_entities:main"
 
 [tool.poetry.dependencies]
-python = "==3.10.*"
-homeassistant = "2023.5.4"
-icmplib = "^3.0.3"
-voluptuous = "^0.13.1"
-locationsharinglib = "5.0.1"
-bleak = "^0.20.2"
-bleak-retry-connector = "^3.0.2"
-bluetooth-adapters = "^0.15.4"
-pyserial = "^3.5"
-bluetooth-auto-recovery = "^1.2.0"
-bt-proximity = "^0.2.1"
-sqlalchemy = "^2.0.16"
-fnv-hash-fast = "^0.3.1"
-jsonpath = "^0.82"
-numpy = "^1.24.3"
-psutil = "^5.9.5"
-psutil-home-assistant = "^0.0.1"
+python = "^3.11"
 wg-utilities = "^3.7.0"
-xmltodict = "^0.13.0"
-gitpython = "^3.1.31"
+pytz = "^2023.3"
+pyyaml = "^6.0"
 
 [tool.poetry.group.dev.dependencies]
 pylint-strict-informational = "^0.1"
