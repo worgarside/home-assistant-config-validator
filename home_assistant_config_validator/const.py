@@ -38,7 +38,6 @@ class KnownEntityType(TypedDict):
 
     names: list[str]
     name_pattern: re.Pattern[str]
-    services: list[str]
 
 
 KNOWN_ENTITIES: dict[str, KnownEntityType] = {
@@ -48,12 +47,6 @@ KNOWN_ENTITIES: dict[str, KnownEntityType] = {
             for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-        "services": [
-            "automation.reload",
-            "automation.toggle",
-            "automation.turn_off",
-            "automation.turn_on",
-        ],
     },
     "script": {
         "names": [
@@ -61,12 +54,6 @@ KNOWN_ENTITIES: dict[str, KnownEntityType] = {
             for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
         ],
         "name_pattern": re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-        "services": [
-            "script.reload",
-            "script.toggle",
-            "script.turn_off",
-            "script.turn_on",
-        ],
     },
 }
 

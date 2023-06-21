@@ -110,13 +110,15 @@ class ValidatorConfig:
         ) -> str:
             nonlocal known_entity_issues
 
-            _ = dict_key, list_index
+            _ = list_index
+
+            if dict_key != "entity_id":
+                return string
 
             for domain, entity_comparands in KNOWN_ENTITIES.items():
                 if (
                     entity_comparands["name_pattern"].fullmatch(string)
                     and string not in entity_comparands["names"]
-                    and string not in entity_comparands["services"]
                 ):
                     known_entity_issues.append(
                         ValueError(f"{domain.title()} {string!r} is not defined")
