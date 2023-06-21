@@ -7,6 +7,9 @@ import re
 from argparse import ArgumentParser
 from json import loads
 from pathlib import Path
+from typing import TypedDict
+
+from yaml import safe_load
 
 # Args
 REPO_PATH = Path().cwd()
@@ -29,26 +32,49 @@ CUSTOM_VALIDATIONS = loads(args.config_path.read_text())["customValidators"]
 ENTITIES_DIR = REPO_PATH / "entities"
 INTEGRATIONS_DIR = REPO_PATH / "integrations"
 
-SCRIPT_NAMES = [
-    f"script.{script_file.stem}"
-    for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
-]
 
-SCRIPT_NAME_PATTERN = re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE)
+class KnownEntityType(TypedDict):
+    """Known entity type."""
 
-SCRIPT_SERVICES = [
-    "script.reload",
-    "script.toggle",
-    "script.turn_off",
-    "script.turn_on",
-]
+    names: list[str]
+    name_pattern: re.Pattern[str]
+    services: list[str]
+
+
+KNOWN_ENTITIES: dict[str, KnownEntityType] = {
+    "automation": {
+        "names": [
+            "automation." + safe_load(automation_file.read_text()).get("id", "")
+            for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+        ],
+        "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+        "services": [
+            "automation.reload",
+            "automation.toggle",
+            "automation.turn_off",
+            "automation.turn_on",
+        ],
+    },
+    "script": {
+        "names": [
+            f"script.{script_file.stem}"
+            for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
+        ],
+        "name_pattern": re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+        "services": [
+            "script.reload",
+            "script.toggle",
+            "script.turn_off",
+            "script.turn_on",
+        ],
+    },
+}
+
 
 __all__ = [
     "CUSTOM_VALIDATIONS",
     "ENTITIES_DIR",
     "INTEGRATIONS_DIR",
     "REPO_PATH",
-    "SCRIPT_NAME_PATTERN",
-    "SCRIPT_NAMES",
-    "SCRIPT_SERVICES",
+    "KNOWN_ENTITIES",
 ]
