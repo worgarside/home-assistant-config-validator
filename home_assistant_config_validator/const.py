@@ -41,22 +41,33 @@ class KnownEntityType(TypedDict):
 
 
 KNOWN_ENTITIES: dict[str, KnownEntityType] = {
-    "automation": {
+    domain: {
         "names": [
-            "automation." + safe_load(automation_file.read_text()).get("id", "")
-            for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+            f"{domain}.{entity_file.stem}"
+            for entity_file in (ENTITIES_DIR / domain).rglob("*.yaml")
         ],
-        "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-    },
-    "script": {
-        "names": [
-            f"script.{script_file.stem}"
-            for script_file in (ENTITIES_DIR / "script").rglob("*.yaml")
-        ],
-        "name_pattern": re.compile(r"^script\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-    },
+        "name_pattern": re.compile(rf"^{domain}\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+    }
+    for domain in (
+        "input_boolean",
+        "input_button",
+        "input_datetime",
+        "input_number",
+        "input_select",
+        "input_text",
+        "script",
+        "var",
+    )
 }
 
+# Special case
+KNOWN_ENTITIES["automation"] = {
+    "names": [
+        "automation." + safe_load(automation_file.read_text()).get("id", "")
+        for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+    ],
+    "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+}
 
 __all__ = [
     "CUSTOM_VALIDATIONS",
