@@ -10,7 +10,7 @@ from pathlib import Path
 from re import sub
 from typing import TypedDict
 
-from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
+from wg_utilities.functions.json import JSONObj, JSONVal, process_list, traverse_dict
 
 from .const import CUSTOM_VALIDATIONS, ENTITIES_DIR, KNOWN_ENTITIES, REPO_PATH
 from .ha_yaml_loader import load_yaml
@@ -63,37 +63,14 @@ class ValidatorConfig:
 
     _domain_issues: dict[str, list[Exception]] = dataclass_field(default_factory=dict)
 
-    def _validate_file(
-        self: ValidatorConfig,
-        *,
-        entity_yaml: JSONObj | Iterable[JSONVal],
-    ) -> tuple[list[Exception], bool]:
-        """Validate a single entity file.
-
-        Args:
-            file_path (Path): The path to the entity file
-            entity_yaml (JSONObj | Iterable[JSONVal]): The entity's YAML
-
-        Returns:
-            list[Exception]: A list of exceptions raised during validation
-            bool: Whether to run custom validations on the entity
-        """
-        file_issues: list[Exception] = []
-
-        if not isinstance(entity_yaml, dict):
-            file_issues.append(TypeError("Entity YAML is not a dict"))
-            return file_issues, False
-
-        return file_issues, True
-
     def _check_known_entity_usages(
         self,
-        entity_yaml: JSONObj,
+        entity_yaml: JSONObj | Iterable[JSONVal],
     ) -> list[Exception]:
         """Check that all scripts used in the entity are defined.
 
         Args:
-            entity_yaml (JSONObj): The entity's YAML
+            entity_yaml (JSONObj | Iterable[JSONVal]): The entity's YAML
 
         Returns:
             list[Exception]: A list of exceptions raised during validation
@@ -125,12 +102,27 @@ class ValidatorConfig:
 
             return string
 
-        traverse_dict(
-            entity_yaml,
-            target_type=str,
-            target_processor_func=_callback,  # type: ignore[arg-type]
-            pass_on_fail=False,
-        )
+        if isinstance(entity_yaml, dict):
+            traverse_dict(
+                entity_yaml,
+                target_type=str,
+                target_processor_func=_callback,  # type: ignore[arg-type]
+                pass_on_fail=False,
+            )
+        elif isinstance(entity_yaml, list):
+            process_list(
+                entity_yaml,
+                target_type=str,
+                target_processor_func=_callback,  # type: ignore[arg-type]
+                pass_on_fail=False,
+            )
+        else:
+            known_entity_issues.append(
+                TypeError(
+                    "Expected `entity_yaml` to be a dict or iterable, not"
+                    f" {type(entity_yaml)!r}"
+                )
+            )
 
         return known_entity_issues
 
@@ -248,23 +240,15 @@ class ValidatorConfig:
             ]
 
         for file in domain_dir_path.rglob("*.yaml"):
-            entity_yaml = load_yaml(file)
+            entity_yaml: JSONObj | Iterable[JSONVal] = load_yaml(file)
 
-            file_issues, run_custom_validations = self._validate_file(
-                entity_yaml=entity_yaml
+            file_issues: list[Exception] = self.run_custom_validations(
+                domain_dir_path=domain_dir_path,
+                file_path=file,
+                entity_yaml=entity_yaml,  # type: ignore[arg-type]
             )
 
-            if run_custom_validations:
-                file_issues.extend(
-                    self.run_custom_validations(
-                        domain_dir_path=domain_dir_path,
-                        file_path=file,
-                        entity_yaml=entity_yaml,  # type: ignore[arg-type]
-                    )
-                )
-
-            if isinstance(entity_yaml, dict):
-                file_issues.extend(self._check_known_entity_usages(entity_yaml))
+            file_issues.extend(self._check_known_entity_usages(entity_yaml))
 
             if file_issues:
                 self._domain_issues[
