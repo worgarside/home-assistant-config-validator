@@ -6,7 +6,6 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from json import dumps
 from pathlib import Path
 from re import sub
 from typing import TypedDict
@@ -282,6 +281,41 @@ class ValidatorConfig:
         return self._domain_issues
 
 
+def format_output(
+    data: dict[str, dict[str, list[Exception]]]
+    | dict[str, list[Exception]]
+    | list[Exception],
+    _indent: int = 0,
+) -> str:
+    """Format output for better readability.
+
+    Args:
+        data (dict | list): Data to format
+        _indent (int, optional): Current indentation level. Defaults to 0.
+
+    Returns:
+        str: Formatted output; sort of YAML, sort of not
+
+    Raises:
+        TypeError: If `data` is not a dict or list
+    """
+    output = ""
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if _indent == 0:
+                output += "\n"
+            output += ("  " * _indent + str(key)) + "\n"
+            output += format_output(value, _indent + 2)
+    elif isinstance(data, list):
+        for exc in data:
+            output += ("  " * _indent) + f"{type(exc).__name__}: {exc!s}" + "\n"
+    else:
+        raise TypeError(f"Unexpected type {type(data).__name__}")
+
+    return output
+
+
 def main() -> None:
     """Validate all entities."""
 
@@ -290,7 +324,7 @@ def main() -> None:
         for domain, json_config in CUSTOM_VALIDATIONS.items()
     }
 
-    all_issues = {}
+    all_issues: dict[str, dict[str, list[Exception]]] = {}
 
     for domain_dir in sorted(ENTITIES_DIR.iterdir()):
         v_config = custom_validation_configs.get(
@@ -305,7 +339,7 @@ def main() -> None:
     if not all_issues:
         sys.exit(0)
 
-    sys.exit(dumps(all_issues, indent=2, default=repr))
+    sys.exit(format_output(all_issues))
 
 
 if __name__ == "__main__":
