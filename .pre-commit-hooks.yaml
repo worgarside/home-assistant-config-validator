@@ -5,7 +5,8 @@
     entry: poetry run validate-entities
     language: python
     args: []
-    additional_dependencies: []
+    additional_dependencies:
+      - poetry
     always_run: true
     require_serial: true
     pass_filenames: false
