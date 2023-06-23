@@ -1,8 +1,20 @@
 ---
   - id: validate-entities
-    name: Home Assistant Config Validator
+    name: Home Assistant Core Configuration Validator
     description: Validate the Home Assistant entities directory
     entry: poetry run validate-entities
+    language: python
+    args: []
+    additional_dependencies:
+      - poetry
+    always_run: true
+    require_serial: true
+    pass_filenames: false
+
+  - id: validate-lovelace
+    name: Home Assistant Lovelace Configuration Validator
+    description: Validate the Home Assistant Lovelace configuration
+    entry: poetry run validate-lovelace
     language: python
     args: []
     additional_dependencies:

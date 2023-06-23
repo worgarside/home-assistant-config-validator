@@ -10,7 +10,7 @@ from typing import Any, ClassVar, cast
 from wg_utilities.functions.json import JSONObj, JSONVal
 from yaml import SafeLoader, ScalarNode, load
 
-from .const import INTEGRATIONS_DIR, REPO_PATH
+from .const import REPO_PATH
 
 
 @dataclass
@@ -42,6 +42,14 @@ class _CustomTagWithPath(_CustomTag):
 
 
 @dataclass
+class Include(_CustomTagWithPath):
+    """Return the content of a file."""
+
+    TAG: ClassVar[str] = "!include"
+    path: str
+
+
+@dataclass
 class IncludeDirList(_CustomTagWithPath):
     """Return the content of a directory as a list.
 
@@ -55,7 +63,7 @@ class IncludeDirList(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_list"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> list[JSONObj]:
+    def load_data(self, relative_to: Path) -> list[JSONObj]:
         """Load the data from the directory.
 
         Args:
@@ -98,7 +106,7 @@ class IncludeDirMergeList(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_merge_list"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> list[JSONObj]:
+    def load_data(self, relative_to: Path) -> list[JSONObj]:
         """Load the data from the directory.
 
         Args:
@@ -141,7 +149,7 @@ class IncludeDirMergeNamed(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_merge_named"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> JSONObj:
+    def load_data(self, relative_to: Path) -> JSONObj:
         """Load the data from the directory.
 
         Args:
@@ -186,7 +194,7 @@ class IncludeDirNamed(_CustomTagWithPath):
     TAG: ClassVar[str] = "!include_dir_named"
     path: str
 
-    def load_data(self, relative_to: Path = INTEGRATIONS_DIR) -> JSONObj:
+    def load_data(self, relative_to: Path) -> JSONObj:
         """Load the data from the directory.
 
         Args:
