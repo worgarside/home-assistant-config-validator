@@ -10,9 +10,15 @@ from pathlib import Path
 from re import sub
 from typing import TypedDict
 
-from wg_utilities.functions.json import JSONObj, JSONVal, process_list, traverse_dict
+from wg_utilities.functions.json import JSONObj, JSONVal
 
-from .const import CUSTOM_VALIDATIONS, ENTITIES_DIR, KNOWN_ENTITIES, REPO_PATH
+from .const import (
+    CUSTOM_VALIDATIONS,
+    ENTITIES_DIR,
+    REPO_PATH,
+    check_known_entity_usages,
+    format_output,
+)
 from .ha_yaml_loader import load_yaml
 
 
@@ -62,69 +68,6 @@ class ValidatorConfig:
     should_be_hardcoded: dict[str, JSONVal] = dataclass_field(default_factory=dict)
 
     _domain_issues: dict[str, list[Exception]] = dataclass_field(default_factory=dict)
-
-    def _check_known_entity_usages(
-        self,
-        entity_yaml: JSONObj | Iterable[JSONVal],
-    ) -> list[Exception]:
-        """Check that all scripts used in the entity are defined.
-
-        Args:
-            entity_yaml (JSONObj | Iterable[JSONVal]): The entity's YAML
-
-        Returns:
-            list[Exception]: A list of exceptions raised during validation
-        """
-
-        known_entity_issues: list[Exception] = []
-
-        def _callback(
-            string: str,
-            *,
-            dict_key: str | None = None,
-            list_index: int | None = None,
-        ) -> str:
-            nonlocal known_entity_issues
-
-            _ = list_index
-
-            if dict_key != "entity_id":
-                return string
-
-            for domain, entity_comparands in KNOWN_ENTITIES.items():
-                if (
-                    entity_comparands["name_pattern"].fullmatch(string)
-                    and string not in entity_comparands["names"]
-                ):
-                    known_entity_issues.append(
-                        ValueError(f"{domain.title()} {string!r} is not defined")
-                    )
-
-            return string
-
-        if isinstance(entity_yaml, dict):
-            traverse_dict(
-                entity_yaml,
-                target_type=str,
-                target_processor_func=_callback,  # type: ignore[arg-type]
-                pass_on_fail=False,
-            )
-        elif isinstance(entity_yaml, list):
-            process_list(
-                entity_yaml,
-                target_type=str,
-                target_processor_func=_callback,  # type: ignore[arg-type]
-                pass_on_fail=False,
-            )
-        else:
-            known_entity_issues.append(
-                TypeError(
-                    "Expected `entity_yaml` to be a dict or iterable, not"
-                    f" {type(entity_yaml)!r}"
-                )
-            )
-
-        return known_entity_issues
 
     def run_custom_validations(
         self,
@@ -248,7 +191,7 @@ class ValidatorConfig:
                 entity_yaml=entity_yaml,  # type: ignore[arg-type]
             )
 
-            file_issues.extend(self._check_known_entity_usages(entity_yaml))
+            file_issues.extend(check_known_entity_usages(entity_yaml))
 
             if file_issues:
                 self._domain_issues[
@@ -263,41 +206,6 @@ class ValidatorConfig:
             dict[str, list[Exception]]: A list of all issues found in the domain
         """
         return self._domain_issues
-
-
-def format_output(
-    data: dict[str, dict[str, list[Exception]]]
-    | dict[str, list[Exception]]
-    | list[Exception],
-    _indent: int = 0,
-) -> str:
-    """Format output for better readability.
-
-    Args:
-        data (dict | list): Data to format
-        _indent (int, optional): Current indentation level. Defaults to 0.
-
-    Returns:
-        str: Formatted output; sort of YAML, sort of not
-
-    Raises:
-        TypeError: If `data` is not a dict or list
-    """
-    output = ""
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if _indent == 0:
-                output += "\n"
-            output += ("  " * _indent + str(key)) + "\n"
-            output += format_output(value, _indent + 2)
-    elif isinstance(data, list):
-        for exc in data:
-            output += ("  " * _indent) + f"{type(exc).__name__}: {exc!s}" + "\n"
-    else:
-        raise TypeError(f"Unexpected type {type(data).__name__}")
-
-    return output
 
 
 def main() -> None:

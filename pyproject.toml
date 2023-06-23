@@ -9,6 +9,7 @@ packages = [{include = "home_assistant_config_validator"}]
 
 [tool.poetry.scripts]
 validate-entities = "home_assistant_config_validator.validate_entities:main"
+validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
