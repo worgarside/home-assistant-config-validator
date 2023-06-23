@@ -14,7 +14,7 @@ from wg_utilities.functions.json import JSONObj, JSONVal, process_list, traverse
 from yaml import safe_load
 
 # Args
-REPO_PATH = Path().cwd().parent / "home-assistant"
+REPO_PATH = Path().cwd()
 
 parser = ArgumentParser(description="Custom Component Parser")
 
