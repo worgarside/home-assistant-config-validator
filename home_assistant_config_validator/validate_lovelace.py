@@ -209,11 +209,9 @@ def main() -> None:
             FileExistsError("File is not used in lovelace config.")
         ]
         for f in all_lovelace_files
-        if f.relative_to(REPO_PATH) not in imported_files
-        and (
-            f.parent.name not in ("dashboards", "archive")
-            or f.name != "ui-lovelace.yaml"
-        )
+        if f.relative_to(REPO_PATH)
+        not in [*imported_files, LOVELACE_ROOT_FILE.relative_to(REPO_PATH)]
+        and f.parent.name not in ("dashboards", "archive")
     }
 
     # Use of unknown entities (that should be known)
