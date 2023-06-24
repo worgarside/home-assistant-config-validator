@@ -36,7 +36,7 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
         str: The converted string
     """
     return sub(
-        r"^_+|_{2,}", "_", sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string)
+        r"(^_+)|(_{2,})", "_", sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string)
     ).lower()
 
 
