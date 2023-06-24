@@ -25,8 +25,9 @@ from .ha_yaml_loader import load_yaml
 def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
     """Convert a string to be alphanumeric and snake_case.
 
-    Leading underscores are removed, and double underscores are replaced with a single
-    underscore. Ignores values within `string` that are also in `ignore_strings`.
+    Leading/trailing underscores are removed, and double (or more) underscores are
+    replaced with a single underscore. Ignores values within `string` that are also in
+    `ignore_strings`.
 
     Args:
         string (str): The string to convert
@@ -36,10 +37,9 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
         str: The converted string
     """
     return (
-        sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string)
+        sub(r"_{2,}", "_", sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string))
         .lower()
-        .removeprefix("_")
-        .replace("__", "_")
+        .strip("_")
     )
 
 
