@@ -35,12 +35,9 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
     Returns:
         str: The converted string
     """
-    return (
-        sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string)
-        .lower()
-        .removeprefix("_")
-        .replace("__", "_")
-    )
+    return sub(
+        r"^_+|_{2,}", "_", sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string)
+    ).lower()
 
 
 class ShouldMatchFilepathItem(TypedDict):
