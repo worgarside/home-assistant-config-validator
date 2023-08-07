@@ -323,13 +323,13 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
 name = "wg-utilities"
-version = "3.8.0"
+version = "3.11.3"
 description = "Loads of useful stuff for the things I do :)"
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "wg_utilities-3.8.0-py3-none-any.whl", hash = "sha256:8197c3f0e6da792663e941fe2772f8118580d7d83c9683714d1c243652a884f6"},
-    {file = "wg_utilities-3.8.0.tar.gz", hash = "sha256:9bc182218aaeaa6bca2595d04d33d1ed6ee2628f6d54bc757af9e201d78c1522"},
+    {file = "wg_utilities-3.11.3-py3-none-any.whl", hash = "sha256:cb06ded2f26ca5a4effd4c1fbe57ae41308ff6db9203392cee57883eff377511"},
+    {file = "wg_utilities-3.11.3.tar.gz", hash = "sha256:7ca1266c8d9018f4aa05b2b2907f7687c3069393fcf55dfb89f5da1cba68cff6"},
 ]
 
 [package.dependencies]
@@ -337,12 +337,12 @@ botocore = "*"
 "jetson.gpio" = {version = "*", markers = "sys_platform == \"linux\""}
 
 [package.extras]
-clients = ["flask (>=2.0.2)", "pydantic (<2.0.0)", "pyjwt (>=2.6,<2.8)", "python-dotenv", "pytz (>=2022.1)", "requests (>=2.26.0)", "strenum", "tzlocal"]
+clients = ["flask (>=2.0.2)", "pydantic (<2.0.0)", "pyjwt (>=2.6,<2.9)", "python-dotenv", "pytz (>=2022.1)", "requests (>=2.26.0)", "strenum", "tzlocal"]
 devices-dht22 = ["pigpio"]
 devices-epd = ["pillow", "rpi.gpio", "spidev"]
 devices-yamaha-yas-209 = ["async-upnp-client", "pydantic (<2.0.0)", "xmltodict"]
 exceptions = ["python-dotenv", "requests (>=2.26.0)"]
-functions = ["lxml (==4.9.2)"]
+functions = ["lxml (==4.9.3)"]
 
 [[package]]
 name = "wrapt"
@@ -431,4 +431,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "a8658f03abeafef5961e2727c0bf98d3e3e892d0d63c15be139d05bd0efc0711"
+content-hash = "5136da702c1961417bb22f98147c68ac684d349e987196866cdb31e167e7e115"
