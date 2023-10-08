@@ -19,6 +19,7 @@ pyyaml = "^6.0"
 
 [tool.poetry.group.dev.dependencies]
 pylint-strict-informational = "^0.1"
+pylint = "<3.0.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
