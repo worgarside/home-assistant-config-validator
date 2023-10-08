@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "home-assistant-config-validator"
-version = "1.2.2"
+version = "1.2.3"
 description = "Custom validator for my Home Assistant configuration"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"
@@ -13,12 +13,13 @@ validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-wg-utilities = "^3.7.0"
+wg-utilities = "^5.3.0"
 pytz = "^2023.3"
 pyyaml = "^6.0"
 
 [tool.poetry.group.dev.dependencies]
 pylint-strict-informational = "^0.1"
+pylint = "<3.0.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
