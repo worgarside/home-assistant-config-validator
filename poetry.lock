@@ -206,13 +206,13 @@ files = [
 
 [[package]]
 name = "wg-utilities"
-version = "5.4.0"
+version = "5.4.1"
 description = "Loads of useful stuff for the things I do :)"
 optional = false
 python-versions = ">=3.11,<4.0"
 files = [
-    {file = "wg_utilities-5.4.0-py3-none-any.whl", hash = "sha256:4c02a3a1e8bbbd768439a174eef7ad9f82104092d2682ef38be55d824a30a88c"},
-    {file = "wg_utilities-5.4.0.tar.gz", hash = "sha256:bf01f3e154a8253205b48da44bc41778b450a5b03a470f34748f9c6c1ac23094"},
+    {file = "wg_utilities-5.4.1-py3-none-any.whl", hash = "sha256:4502ee38b8f8bdd6d75f5d9cd289ea78d03929126bf0339f8b31f276c3f3092d"},
+    {file = "wg_utilities-5.4.1.tar.gz", hash = "sha256:703ffb7709b5f1267c3ed28f6e1b738d1c4f47a380d3505ee0a3b6976592d518"},
 ]
 
 [package.extras]
@@ -227,4 +227,4 @@ testing = ["botocore"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "56cd0a15205bfb8a8e4cfd62b77593b3102feb234d09d3d26e28ffb7ff881a95"
+content-hash = "22fdd890f620a109199d2053e7a2e2bda09b52e66d48f0443b54e042bbc5d0be"
