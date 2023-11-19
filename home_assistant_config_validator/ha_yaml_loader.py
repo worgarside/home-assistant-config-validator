@@ -19,7 +19,10 @@ class _CustomTag:
 
     @classmethod
     def construct(
-        cls, loader: SafeLoader, node: ScalarNode, **kwargs: dict[str, Any]
+        cls,
+        loader: SafeLoader,
+        node: ScalarNode,
+        **kwargs: dict[str, Any],
     ) -> _CustomTag:
         """Construct a custom tag from a YAML node.
 
@@ -32,7 +35,6 @@ class _CustomTag:
         Returns:
             _CustomTag: The constructed custom tag
         """
-
         # pylint: disable=too-many-function-args
         return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[call-arg]
 
@@ -85,9 +87,9 @@ class IncludeDirList(_CustomTagWithPath):
             if isinstance(file_content, dict):
                 data.append(file_content)
             else:
-                raise TypeError(
+                raise TypeError(  # noqa: TRY003
                     f"File {file} contains a {type(file_content)}, but"
-                    "`!include_dir_list` expects each file to contain a dictionary"
+                    "`!include_dir_list` expects each file to contain a dictionary",
                 )
 
         return data
@@ -128,9 +130,9 @@ class IncludeDirMergeList(_CustomTagWithPath):
             if isinstance(file_content, list):
                 data.extend(file_content)
             else:
-                raise TypeError(
+                raise TypeError(  # noqa: TRY003
                     f"File {file} contains a {type(file_content)}, but"
-                    "`!include_dir_merge_list` expects each file to contain a list"
+                    "`!include_dir_merge_list` expects each file to contain a list",
                 )
 
         return data
@@ -172,10 +174,10 @@ class IncludeDirMergeNamed(_CustomTagWithPath):
             if isinstance(file_content, dict):
                 data.update(file_content)
             else:
-                raise TypeError(
+                raise TypeError(  # noqa: TRY003
                     f"File {file.as_posix()} contains a {type(file_content)}, but"
                     "`!include_dir_merge_named` expects each file to contain a"
-                    " dictionary"
+                    " dictionary",
                 )
 
         return data
@@ -218,9 +220,9 @@ class IncludeDirNamed(_CustomTagWithPath):
             if isinstance(file_content, dict):
                 data.update(file_content)
             else:
-                raise TypeError(
+                raise TypeError(  # noqa: TRY003
                     f"File {file.as_posix()} contains a list, but `!include_dir_list`"
-                    " expects each file to contain a single object"
+                    " expects each file to contain a single object",
                 )
 
         return data
@@ -247,7 +249,6 @@ class Secret(_CustomTag):
         list_index: int | None = None,
     ) -> JSONVal:
         """Get a substitute value for a secret from the ID."""
-
         _ = dict_key, list_index
 
         return secret.get_fake_value()
@@ -275,15 +276,15 @@ class Secret(_CustomTag):
             ) is not None:
                 return fake_secret  # type: ignore[no-any-return]
         else:
-            raise TypeError(
+            raise TypeError(  # noqa: TRY003
                 f"File {self.FAKE_SECRETS_PATH.as_posix()} contains a"
                 f" {type(fake_secrets)}, but `!secret` expects it to contain a"
-                " dictionary"
+                " dictionary",
             )
 
-        raise ValueError(
+        raise ValueError(  # noqa: TRY003
             f"Secret {self.secret_id!r} not found in"
-            f" {self.FAKE_SECRETS_PATH.as_posix()!r}"
+            f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
         )
 
 
@@ -303,7 +304,7 @@ def load_yaml(path: Path) -> JSONObj | Iterable[JSONVal]:
     """
     return cast(
         JSONObj | Iterable[JSONVal],
-        load(path.read_text(), Loader=HAYamlLoader),
+        load(path.read_text(), Loader=HAYamlLoader),  # noqa: S506
     )
 
 

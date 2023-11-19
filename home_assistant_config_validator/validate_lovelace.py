@@ -40,9 +40,11 @@ class DashboardConfig(LovelaceConfig):
 
 
 def create_callback(
-    root_file: Path, imported_files: list[Path]
+    root_file: Path,
+    imported_files: list[Path],
 ) -> Callable[
-    [_CustomTag, str | None, int | None], JSONObj | Iterable[JSONVal] | JSONVal
+    [_CustomTag, str | None, int | None],
+    JSONObj | Iterable[JSONVal] | JSONVal,
 ]:
     """Create a callback for custom YAML tags.
 
@@ -51,13 +53,14 @@ def create_callback(
         imported_files (list[Path]): list of imported files, modified in place
 
     Returns:
-
         Callable: Callback to get the values of custom YAML tags.
     """
     load_data_relative_to = root_file.parent if root_file.is_file() else root_file
 
     def _callback(
-        yaml_tag: _CustomTag, dict_key: str | None = None, list_index: int | None = None
+        yaml_tag: _CustomTag,
+        dict_key: str | None = None,
+        list_index: int | None = None,
     ) -> JSONObj | Iterable[JSONVal] | JSONVal:
         """Callback for custom YAML tags.
 
@@ -96,7 +99,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
             files for later reference.
     """
     lovelace_config: LovelaceConfig = load_yaml(  # type: ignore[assignment]
-        LOVELACE_ROOT_FILE
+        LOVELACE_ROOT_FILE,
     )
 
     imported_files: list[Path] = []
@@ -107,21 +110,23 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
         lovelace_config,  # type: ignore[arg-type]
         target_type=target_types,
         target_processor_func=create_callback(  # type: ignore[arg-type]
-            LOVELACE_ROOT_FILE, imported_files
+            LOVELACE_ROOT_FILE,
+            imported_files,
         ),
         pass_on_fail=False,
     )
 
     for dashboard_file in (LOVELACE_DIR / "dashboards").glob("*.yaml"):
         dashboard_yaml: DashboardConfig = load_yaml(  # type: ignore[assignment]
-            dashboard_file
+            dashboard_file,
         )
 
         traverse_dict(
             dashboard_yaml,  # type: ignore[arg-type]
             target_type=target_types,
             target_processor_func=create_callback(  # type: ignore[arg-type]
-                dashboard_file, imported_files
+                dashboard_file,
+                imported_files,
             ),
             pass_on_fail=False,
         )
@@ -132,7 +137,8 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
 
 
 def validate_decluttering_templates(
-    lovelace_file_yaml: JSONObj, lovelace_config: LovelaceConfig
+    lovelace_file_yaml: JSONObj,
+    lovelace_config: LovelaceConfig,
 ) -> list[Exception]:
     """Validate that all referenced decluttering templates are defined.
 
@@ -143,7 +149,6 @@ def validate_decluttering_templates(
     Returns:
         list[Exception]: A list of exceptions raised during validation
     """
-
     dc_template_issues: list[Exception] = []
 
     def _callback(
@@ -178,7 +183,7 @@ def validate_decluttering_templates(
 
         if string not in lovelace_config["decluttering_templates"]:
             dc_template_issues.append(
-                KeyError(f"Unknown decluttering template: {string}")
+                KeyError(f"Unknown decluttering template: {string}"),
             )
 
         return string
@@ -195,7 +200,6 @@ def validate_decluttering_templates(
 
 def main() -> None:
     """Validate all entities."""
-
     lovelace_config, imported_files = load_lovelace_config()
 
     all_lovelace_files = [
@@ -206,7 +210,7 @@ def main() -> None:
     # Unused files
     all_issues: dict[str, list[Exception]] = {
         f.relative_to(REPO_PATH).as_posix(): [
-            FileExistsError("File is not used in lovelace config.")
+            FileExistsError("File is not used in lovelace config."),
         ]
         for f in all_lovelace_files
         if f.relative_to(REPO_PATH)
@@ -220,13 +224,15 @@ def main() -> None:
         issues_key = ll_file.relative_to(REPO_PATH).as_posix()
 
         if bad_entity_usages := check_known_entity_usages(
-            lovelace_file_yaml, entity_keys=("entity", "entity_id", "service")
+            lovelace_file_yaml,
+            entity_keys=("entity", "entity_id", "service"),
         ):
             all_issues.setdefault(issues_key, []).extend(bad_entity_usages)
 
         # Use of unknown decluttering templates
         if dc_template_issues := validate_decluttering_templates(
-            lovelace_file_yaml, lovelace_config
+            lovelace_file_yaml,
+            lovelace_config,
         ):
             all_issues.setdefault(issues_key, []).extend(dc_template_issues)
 
