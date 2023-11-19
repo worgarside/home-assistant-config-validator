@@ -12,14 +12,14 @@ from typing import TypedDict
 
 from wg_utilities.functions.json import JSONObj, JSONVal
 
-from .const import (
+from home_assistant_config_validator.const import (
     CUSTOM_VALIDATIONS,
     ENTITIES_DIR,
     REPO_PATH,
     check_known_entity_usages,
     format_output,
 )
-from .ha_yaml_loader import load_yaml
+from home_assistant_config_validator.ha_yaml_loader import load_yaml
 
 
 def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:

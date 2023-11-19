@@ -1,3 +1,4 @@
+# pylint: disable=cyclic-import
 """Constants for the configuration validator."""
 
 
@@ -6,15 +7,16 @@ from __future__ import annotations
 import re
 from argparse import ArgumentParser
 from collections.abc import Iterable
+from functools import lru_cache
 from json import loads
+from os import getenv
 from pathlib import Path
 from typing import TypedDict
 
 from wg_utilities.functions.json import JSONObj, JSONVal, process_list, traverse_dict
-from yaml import safe_load
 
 # Args
-REPO_PATH = Path().cwd()
+REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd().absolute().as_posix()))
 
 parser = ArgumentParser(description="Custom Component Parser")
 
@@ -44,34 +46,46 @@ class KnownEntityType(TypedDict):
     name_pattern: re.Pattern[str]
 
 
-KNOWN_ENTITIES: dict[str, KnownEntityType] = {
-    domain: {
-        "names": [
-            f"{domain}.{entity_file.stem}"
-            for entity_file in (ENTITIES_DIR / domain).rglob("*.yaml")
-        ],
-        "name_pattern": re.compile(rf"^{domain}\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-    }
-    for domain in (
-        "input_boolean",
-        "input_button",
-        "input_datetime",
-        "input_number",
-        "input_select",
-        "input_text",
-        "script",
-        "var",
-    )
-}
+@lru_cache(maxsize=1)
+def _get_known_entities() -> dict[str, KnownEntityType]:
+    # pylint: disable=import-outside-toplevel
+    from home_assistant_config_validator.ha_yaml_loader import load_yaml
 
-# Special case
-KNOWN_ENTITIES["automation"] = {
-    "names": [
-        "automation." + safe_load(automation_file.read_text()).get("id", "")
-        for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
-    ],
-    "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
-}
+    known_entities: dict[str, KnownEntityType] = {
+        domain: {
+            "names": [
+                f"{domain}.{entity_file.stem}"
+                for entity_file in (ENTITIES_DIR / domain).rglob("*.yaml")
+            ],
+            "name_pattern": re.compile(
+                rf"^{domain}\.[a-z0-9_-]+$", flags=re.IGNORECASE
+            ),
+        }
+        for domain in (
+            "input_boolean",
+            "input_button",
+            "input_datetime",
+            "input_number",
+            "input_select",
+            "input_text",
+            "script",
+            "var",
+        )
+    }
+
+    # Special case
+    known_entities["automation"] = {
+        "names": [
+            str(
+                "automation."
+                + load_yaml(automation_file).get("id", "")  # type: ignore[attr-defined]
+            )
+            for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+        ],
+        "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
+    }
+
+    return known_entities
 
 
 def check_known_entity_usages(
@@ -106,7 +120,7 @@ def check_known_entity_usages(
         if not dict_key or dict_key not in entity_keys:
             return string
 
-        for domain, entity_comparands in KNOWN_ENTITIES.items():
+        for domain, entity_comparands in _get_known_entities().items():
             if (
                 entity_comparands["name_pattern"].fullmatch(string)
                 and string not in entity_comparands["names"]
@@ -182,6 +196,5 @@ __all__ = [
     "ENTITIES_DIR",
     "INTEGRATIONS_DIR",
     "REPO_PATH",
-    "KNOWN_ENTITIES",
     "format_output",
 ]
