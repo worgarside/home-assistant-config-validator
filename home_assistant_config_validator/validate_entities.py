@@ -61,7 +61,7 @@ class ValidatorConfig:
 
     should_match_filename: list[str] = dataclass_field(default_factory=list)
     should_match_filepath: list[ShouldMatchFilepathItem] = dataclass_field(
-        default_factory=list
+        default_factory=list,
     )
     should_be_equal: list[tuple[str, ...]] = dataclass_field(default_factory=list)
     should_exist: list[str] = dataclass_field(default_factory=list)
@@ -69,7 +69,7 @@ class ValidatorConfig:
 
     _domain_issues: dict[str, list[Exception]] = dataclass_field(default_factory=dict)
 
-    def run_custom_validations(
+    def run_custom_validations(  # noqa: PLR0912
         self,
         *,
         domain_dir_path: Path,
@@ -98,15 +98,16 @@ class ValidatorConfig:
             if (
                 fmt_value := replace_non_alphanumeric(
                     field_value := entity_yaml.get(  # type: ignore[arg-type]
-                        smfn_field, ""
-                    )
+                        smfn_field,
+                        "",
+                    ),
                 )
             ) != file_path.with_suffix("").name.lower():
                 custom_issues.append(
                     ValueError(
                         f"`{smfn_field}: {field_value!s}` ({fmt_value=}) should match"
-                        " file name"
-                    )
+                        " file name",
+                    ),
                 )
 
         for field_name_1, field_name_2 in self.should_be_equal:
@@ -116,8 +117,8 @@ class ValidatorConfig:
                 custom_issues.append(
                     ValueError(
                         f"`{field_name_1}: {field_value_1!s}` should match"
-                        f" `{field_name_2}: {field_value_2!s}`"
-                    )
+                        f" `{field_name_2}: {field_value_2!s}`",
+                    ),
                 )
 
         for smfp_config in self.should_match_filepath:
@@ -142,8 +143,8 @@ class ValidatorConfig:
                 custom_issues.append(
                     ValueError(
                         f"`{smfp_config['field']}: {(actual_value or 'null')!s}`"
-                        f"should match file path: `{expected_value!s}`"
-                    )
+                        f"should match file path: `{expected_value!s}`",
+                    ),
                 )
 
         for se_field in self.should_exist:
@@ -155,8 +156,8 @@ class ValidatorConfig:
                 custom_issues.append(
                     ValueError(
                         f"`{sbh_field}: {field_value!s}` should be hardcoded as"
-                        f" {hardcoded_value!r}"
-                    )
+                        f" {hardcoded_value!r}",
+                    ),
                 )
 
         return custom_issues
@@ -172,14 +173,13 @@ class ValidatorConfig:
         Invalid files are added to the `self._domain_issues` dict, with the file path
         as the key and a list of exceptions as the value.
         """
-
         domain_dir_path = ENTITIES_DIR / self.domain
 
         if not domain_dir_path.is_dir():
             self._domain_issues["root"] = [
                 ValueError(
-                    f"Directory {domain_dir_path.relative_to(REPO_PATH)} does not exist"
-                )
+                    f"Directory {domain_dir_path.relative_to(REPO_PATH)} does not exist",
+                ),
             ]
 
         for file in domain_dir_path.rglob("*.yaml"):
@@ -210,7 +210,6 @@ class ValidatorConfig:
 
 def main() -> None:
     """Validate all entities."""
-
     custom_validation_configs = {
         domain: ValidatorConfig(domain=domain, **json_config)
         for domain, json_config in CUSTOM_VALIDATIONS.items()
@@ -220,7 +219,8 @@ def main() -> None:
 
     for domain_dir in sorted(ENTITIES_DIR.iterdir()):
         v_config = custom_validation_configs.get(
-            domain_dir.name, ValidatorConfig(domain=domain_dir.name)
+            domain_dir.name,
+            ValidatorConfig(domain=domain_dir.name),
         )
 
         v_config.validate_domain()

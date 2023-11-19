@@ -58,7 +58,8 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
                 for entity_file in (ENTITIES_DIR / domain).rglob("*.yaml")
             ],
             "name_pattern": re.compile(
-                rf"^{domain}\.[a-z0-9_-]+$", flags=re.IGNORECASE
+                rf"^{domain}\.[a-z0-9_-]+$",
+                flags=re.IGNORECASE,
             ),
         }
         for domain in (
@@ -78,7 +79,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
         "names": [
             str(
                 "automation."
-                + load_yaml(automation_file).get("id", "")  # type: ignore[attr-defined]
+                + load_yaml(automation_file).get("id", ""),  # type: ignore[attr-defined]
             )
             for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
         ],
@@ -104,7 +105,6 @@ def check_known_entity_usages(
     Returns:
         list[Exception]: A list of exceptions raised during validation
     """
-
     known_entity_issues: list[Exception] = []
 
     def _callback(
@@ -126,7 +126,7 @@ def check_known_entity_usages(
                 and string not in entity_comparands["names"]
             ):
                 known_entity_issues.append(
-                    ValueError(f"{domain.title()} {string!r} is not defined")
+                    ValueError(f"{domain.title()} {string!r} is not defined"),
                 )
 
         return string
@@ -149,8 +149,8 @@ def check_known_entity_usages(
         known_entity_issues.append(
             TypeError(
                 "Expected `entity_yaml` to be a dict or iterable, not"
-                f" {type(entity_yaml)!r}"
-            )
+                f" {type(entity_yaml)!r}",
+            ),
         )
 
     return known_entity_issues
@@ -186,7 +186,7 @@ def format_output(
         for exc in data:
             output += ("  " * _indent) + f"{type(exc).__name__}: {exc!s}" + "\n"
     else:
-        raise TypeError(f"Unexpected type {type(data).__name__}")
+        raise TypeError(f"Unexpected type {type(data).__name__}")  # noqa: TRY003
 
     return output
 
