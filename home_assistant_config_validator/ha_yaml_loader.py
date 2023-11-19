@@ -287,7 +287,6 @@ class Secret(_CustomTag):
         )
 
 
-# pylint: disable=too-few-public-methods
 class HAYamlLoader(SafeLoader):
     """A YAML loader that supports custom Home Assistant tags."""
 
