@@ -191,7 +191,12 @@ class ValidatorConfig:
                 entity_yaml=entity_yaml,  # type: ignore[arg-type]
             )
 
-            file_issues.extend(check_known_entity_usages(entity_yaml))
+            file_issues.extend(
+                check_known_entity_usages(
+                    entity_yaml,
+                    entity_keys=("entity_id", "service"),
+                ),
+            )
 
             if file_issues:
                 self._domain_issues[
