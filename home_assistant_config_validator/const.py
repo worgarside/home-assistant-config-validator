@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 from argparse import ArgumentParser
 from collections.abc import Iterable
+from enum import StrEnum
 from functools import lru_cache
 from json import loads
 from os import getenv
@@ -39,6 +40,49 @@ LOVELACE_DIR = REPO_PATH / "lovelace"
 LOVELACE_ROOT_FILE = REPO_PATH / "ui-lovelace.yaml"
 
 
+class Domain(StrEnum):
+    AUTOMATION = "automation"
+    BINARY_SENSOR = "binary_sensor"
+    BUTTON = "button"
+    CALENDAR = "calendar"
+    CAMERA = "camera"
+    COVER = "cover"
+    DEVICE_TRACKER = "device_tracker"
+    EVENT = "event"
+    FAN = "fan"
+    INPUT_BOOLEAN = "input_boolean"
+    INPUT_BUTTON = "input_button"
+    INPUT_DATETIME = "input_datetime"
+    INPUT_NUMBER = "input_number"
+    INPUT_SELECT = "input_select"
+    INPUT_TEXT = "input_text"
+    LIGHT = "light"
+    MEDIA_PLAYER = "media_player"
+    NUMBER = "number"
+    PERSON = "person"
+    REMOTE = "remote"
+    SCRIPT = "script"
+    SELECT = "select"
+    SENSOR = "sensor"
+    SHELL_COMMAND = "shell_command"
+    SUN = "sun"
+    SWITCH = "switch"
+    UPDATE = "update"
+    VACUUM = "vacuum"
+    VAR = "var"
+    WEATHER = "weather"
+    ZONE = "zone"
+
+
+KNOWN_SERVICES = {
+    Domain.SCRIPT: (
+        "reload",
+        "turn_off",
+        "turn_on",
+    ),
+}
+
+
 class KnownEntityType(TypedDict):
     """Known entity type."""
 
@@ -47,11 +91,11 @@ class KnownEntityType(TypedDict):
 
 
 @lru_cache(maxsize=1)
-def _get_known_entities() -> dict[str, KnownEntityType]:
+def _get_known_entities() -> dict[Domain, KnownEntityType]:
     # pylint: disable=import-outside-toplevel
     from home_assistant_config_validator.ha_yaml_loader import load_yaml
 
-    known_entities: dict[str, KnownEntityType] = {
+    known_entities: dict[Domain, KnownEntityType] = {
         domain: {
             "names": [
                 f"{domain}.{entity_file.stem}"
@@ -63,24 +107,22 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
             ),
         }
         for domain in (
-            "input_boolean",
-            "input_button",
-            "input_datetime",
-            "input_number",
-            "input_select",
-            "input_text",
-            "script",
-            "var",
+            Domain.INPUT_BOOLEAN,
+            Domain.INPUT_BUTTON,
+            Domain.INPUT_DATETIME,
+            Domain.INPUT_NUMBER,
+            Domain.INPUT_SELECT,
+            Domain.INPUT_TEXT,
+            Domain.SCRIPT,
+            Domain.SHELL_COMMAND,
+            Domain.VAR,
         )
     }
 
     # Special case
-    known_entities["automation"] = {
+    known_entities[Domain.AUTOMATION] = {
         "names": [
-            str(
-                "automation."
-                + load_yaml(automation_file).get("id", ""),  # type: ignore[attr-defined]
-            )
+            ".".join((Domain.AUTOMATION, load_yaml(automation_file).get("id", "")))  # type: ignore[attr-defined]
             for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
@@ -105,6 +147,9 @@ def check_known_entity_usages(
     Returns:
         list[Exception]: A list of exceptions raised during validation
     """
+    if "service" not in entity_keys:
+        entity_keys = (*entity_keys, "service")
+
     known_entity_issues: list[Exception] = []
 
     def _callback(
@@ -121,12 +166,27 @@ def check_known_entity_usages(
             return string
 
         for domain, entity_comparands in _get_known_entities().items():
-            if (
-                entity_comparands["name_pattern"].fullmatch(string)
-                and string not in entity_comparands["names"]
+            if (not entity_comparands["name_pattern"].fullmatch(string)) or (
+                dict_key == "service"
+                and (
+                    domain not in (Domain.SCRIPT, Domain.SHELL_COMMAND)
+                    or string.split(".")[1] in KNOWN_SERVICES.get(domain, ())
+                )
             ):
+                continue
+
+            if string not in entity_comparands["names"]:
                 known_entity_issues.append(
-                    ValueError(f"{domain.title()} {string!r} is not defined"),
+                    ValueError(
+                        " ".join(
+                            (
+                                domain.replace("_", " ").title(),
+                                dict_key.replace("_", " ").title(),
+                                string,
+                                "is not defined",
+                            ),
+                        ),
+                    ),
                 )
 
         return string
