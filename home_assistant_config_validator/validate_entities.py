@@ -51,6 +51,7 @@ class ShouldMatchFilepathItem(TypedDict):
     prefix: str
     ignore_chars: str
     include_domain_dir: bool
+    remove_sensor_prefix: bool
 
 
 @dataclass
@@ -122,7 +123,16 @@ class ValidatorConfig:
                 )
 
         for smfp_config in self.should_match_filepath:
-            if smfp_config.get("include_domain_dir", False):
+            include_domain_dir = smfp_config.get("include_domain_dir", False)
+            remove_sensor_prefix = smfp_config.get("remove_sensor_prefix", False)
+
+            if include_domain_dir:
+                if remove_sensor_prefix:
+                    raise ValueError(  # noqa: TRY003
+                        "include_domain_dir and remove_sensor_prefix are mutually"
+                        " exclusive",
+                    )
+
                 filepath_parts = (
                     file_path.with_suffix("").relative_to(domain_dir_path.parent).parts
                 )
@@ -130,6 +140,12 @@ class ValidatorConfig:
                 filepath_parts = (
                     file_path.with_suffix("").relative_to(domain_dir_path).parts
                 )
+
+            if remove_sensor_prefix and filepath_parts[0] in (
+                "binary_sensor",
+                "sensor",
+            ):
+                filepath_parts = filepath_parts[1:]
 
             expected_value = smfp_config.get("prefix", "") + smfp_config[
                 "separator"
