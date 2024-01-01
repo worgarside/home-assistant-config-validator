@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from pathlib import Path
-from re import sub
+from re import escape, sub
 from typing import TypedDict
 
 from wg_utilities.functions.json import JSONObj, JSONVal
@@ -37,7 +37,7 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
         str: The converted string
     """
     return (
-        sub(r"_{2,}", "_", sub(rf"[^a-zA-Z0-9{ignore_chars}]", "_", string))
+        sub(r"_{2,}", "_", sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", "_", string))
         .lower()
         .strip("_")
     )
@@ -77,7 +77,7 @@ class ValidatorConfig:
         file_path: Path,
         entity_yaml: JSONObj,
     ) -> list[Exception]:
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals,too-many-branches
         """Run all validations on the given entity.
 
         Args:
@@ -123,10 +123,9 @@ class ValidatorConfig:
                 )
 
         for smfp_config in self.should_match_filepath:
-            include_domain_dir = smfp_config.get("include_domain_dir", False)
             remove_sensor_prefix = smfp_config.get("remove_sensor_prefix", False)
 
-            if include_domain_dir:
+            if smfp_config.get("include_domain_dir", False):
                 if remove_sensor_prefix:
                     raise ValueError(  # noqa: TRY003
                         "include_domain_dir and remove_sensor_prefix are mutually"
@@ -147,19 +146,24 @@ class ValidatorConfig:
             ):
                 filepath_parts = filepath_parts[1:]
 
-            expected_value = smfp_config.get("prefix", "") + smfp_config[
-                "separator"
-            ].join(filepath_parts)
+            expected_value = smfp_config.get("prefix", "") + (
+                sep := smfp_config["separator"]
+            ).join(filepath_parts)
 
             actual_value = replace_non_alphanumeric(
                 entity_yaml.get(smfp_config["field"], ""),  # type: ignore[arg-type]
-                ignore_chars=smfp_config.get("separator", ""),
+                ignore_chars=sep.replace(" ", ""),
             )
+
+            if sep == " ":
+                actual_value = actual_value.replace("_", " ")
+                expected_value = expected_value.replace("_", " ")
+
             if expected_value != actual_value:
                 custom_issues.append(
                     ValueError(
                         f"`{smfp_config['field']}: {(actual_value or 'null')!s}`"
-                        f"should match file path: `{expected_value!s}`",
+                        f" should match file path: `{expected_value!s}`",
                     ),
                 )
 
