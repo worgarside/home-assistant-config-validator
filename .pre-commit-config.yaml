@@ -95,7 +95,7 @@ repos:
           - --show-error-codes
         additional_dependencies:
           - types-PyYAML
-          - wg-utilities==5.7.0
+          - wg-utilities==5.7.1
 
   - repo: local
     hooks:
