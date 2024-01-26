@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
-from wg_utilities.functions.json import JSONObj, JSONVal
+from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
 from yaml import SafeLoader, ScalarNode, load
 
 from .const import REPO_PATH
@@ -42,6 +43,17 @@ class _CustomTag:
 class _CustomTagWithPath(_CustomTag):
     path: str
 
+    def load_data(self, relative_to: Path) -> JSONObj | Iterable[JSONVal]:
+        """Load the data from the path.
+
+        Args:
+            relative_to (Path): The path to load the data relative to.
+
+        Returns:
+            JSONObj | Iterable[JSONVal]: The data from the path.
+        """
+        raise NotImplementedError
+
 
 @dataclass
 class Include(_CustomTagWithPath):
@@ -49,6 +61,18 @@ class Include(_CustomTagWithPath):
 
     TAG: ClassVar[str] = "!include"
     path: str
+
+    def load_data(self, relative_to: Path) -> JSONObj | Iterable[JSONVal]:
+        """Load the data from the path.
+
+        Args:
+            relative_to (Path): The path to load the data relative to.
+
+        Returns:
+            JSONObj | Iterable[JSONVal]: The data from the path.
+        """
+        raise NotImplementedError
+        return load_yaml(relative_to / self.path)
 
 
 @dataclass
@@ -70,7 +94,6 @@ class IncludeDirList(_CustomTagWithPath):
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             list[JSONObj]:the content of a directory as a list with each file content
@@ -97,7 +120,7 @@ class IncludeDirList(_CustomTagWithPath):
 
 @dataclass
 class IncludeDirMergeList(_CustomTagWithPath):
-    """Return the content of a directory as a list.
+    """Return the content of a directory as a list by combining all items.
 
     https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
 
@@ -113,7 +136,6 @@ class IncludeDirMergeList(_CustomTagWithPath):
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             list[JSONObj]: The content of a directory as a list by merging all files
@@ -156,7 +178,6 @@ class IncludeDirMergeNamed(_CustomTagWithPath):
 
         Args:
             relative_to (Path, optional): The path to load the data relative to.
-                Defaults to INTEGRATIONS_DIR.
 
         Returns:
             JSONObj: The content of a directory as a dictionary by merging all files
@@ -168,7 +189,6 @@ class IncludeDirMergeNamed(_CustomTagWithPath):
         data = {}
 
         for file in sorted((relative_to / self.path).rglob("*.yaml")):
-            print("    Loading", file)
             file_content = load_yaml(file)
 
             if isinstance(file_content, dict):
@@ -218,7 +238,7 @@ class IncludeDirNamed(_CustomTagWithPath):
             file_content = load_yaml(file)
 
             if isinstance(file_content, dict):
-                data.update(file_content)
+                data[file.stem] = file_content
             else:
                 raise TypeError(  # noqa: TRY003
                     f"File {file.as_posix()} contains a list, but `!include_dir_list`"
@@ -252,6 +272,10 @@ class Secret(_CustomTag):
         _ = dict_key, list_index
 
         return secret.get_fake_value()
+
+    def load_data(self, relative_to: Path) -> JSONVal:
+        _ = relative_to
+        return self.get_fake_value()
 
     def get_fake_value(self, fallback_value: str | None = None) -> JSONVal:
         """Get a substitute value for a secret.
@@ -292,7 +316,24 @@ class HAYamlLoader(SafeLoader):
     """A YAML loader that supports custom Home Assistant tags."""
 
 
-def load_yaml(path: Path) -> JSONObj | Iterable[JSONVal]:
+@lru_cache
+def subclasses_recursive(cls: type[_CustomTag]) -> tuple[type[_CustomTag], ...]:
+    """Get all subclasses of a class recursively.
+
+    Args:
+        cls (type[_CustomTag]): The class to get the subclasses of.
+
+    Returns:
+        list[type[_CustomTag]]: A list of all subclasses of the class.
+    """
+    indirect: list[type[_CustomTag]] = []
+    for subclass in (direct := cls.__subclasses__()):
+        indirect.extend(subclasses_recursive(subclass))
+
+    return tuple(direct + indirect)
+
+
+def load_yaml(path: Path, *, resolve_tags: bool = False) -> JSONObj | Iterable[JSONVal]:
     """Load a YAML file.
 
     Args:
@@ -302,25 +343,30 @@ def load_yaml(path: Path) -> JSONObj | Iterable[JSONVal]:
         JSONObj | Iterable[JSONVal]: The content of the YAML file as a JSON object or
             iterable of JSON values.
     """
-    return cast(
+    content = cast(
         JSONObj | Iterable[JSONVal],
         load(path.read_text(), Loader=HAYamlLoader),  # noqa: S506
     )
 
+    if resolve_tags:
 
-def subclasses_recursive(cls: type[_CustomTag]) -> list[type[_CustomTag]]:
-    """Get all subclasses of a class recursively.
+        def _cb(
+            value: JSONVal[_CustomTag],
+            *,
+            dict_key: str | None = None,
+            list_index: int | None = None,
+        ) -> JSONVal:
+            return value.load_data(path.parent)
 
-    Args:
-        cls (type[_CustomTag]): The class to get the subclasses of.
+        traverse_dict(
+            content,
+            target_type=_CustomTag,
+            target_processor_func=_cb,
+            pass_on_fail=False,
+            log_op_func_failures=False,
+        )
 
-    Returns:
-        list[type[_CustomTag]]: A list of all subclasses of the class.
-    """
-    indirect = []
-    for subclass in (direct := cls.__subclasses__()):
-        indirect.extend(subclasses_recursive(subclass))
-    return direct + indirect
+    return content
 
 
 def add_custom_tags_to_loader(loader: type[SafeLoader]) -> None:
