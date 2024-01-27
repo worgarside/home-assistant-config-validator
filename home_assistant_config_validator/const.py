@@ -137,8 +137,9 @@ def check_known_entity_usages(
 ) -> list[Exception]:
     """Check that all entities used in the config YAML are defined elsewhere.
 
-    This only applies to the daomins which are solely defined in YAML files; any
+    This only applies to the domains which are solely defined in YAML files; any
     domains which have entities that can be defined through the
+
     Args:
         entity_yaml (JSONObj | Iterable[JSONVal]): The entity's YAML
         entity_keys (Iterable[str], optional): The keys to check for entities. Defaults
