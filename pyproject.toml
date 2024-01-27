@@ -5,7 +5,7 @@ description = "Custom validator for my Home Assistant configuration"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "home_assistant_config_validator"}]
+packages = [{ include = "home_assistant_config_validator" }]
 
 [tool.poetry.scripts]
 validate-entities = "home_assistant_config_validator.validate_entities:main"
@@ -23,9 +23,7 @@ pylint = "<4.0.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
-requires = [
-  "poetry-core",
-]
+requires = ["poetry-core"]
 
 #######################
 # Tool Configurations #
@@ -120,4 +118,4 @@ select = [
 convention = "google"
 
 [tool.ruff.pylint]
-max-args=6
+max-args = 6

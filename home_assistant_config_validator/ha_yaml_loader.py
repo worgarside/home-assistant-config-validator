@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path, PurePath
 from typing import Any, ClassVar, Literal, Self, cast
 
-from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
+from wg_utilities.functions.json import JSONArr, JSONObj, JSONVal, process_json_object
 from yaml import SafeLoader, ScalarNode, load
 
 from home_assistant_config_validator.const import REPO_PATH
@@ -46,7 +45,7 @@ class _CustomTag(ABC):
         source_file: Path,
         *,
         resolve_tags: bool,
-    ) -> JSONObj | Iterable[JSONVal] | JSONVal:
+    ) -> JSONObj | JSONArr | JSONVal:
         """Load the data for the tag."""
         raise NotImplementedError
 
@@ -64,7 +63,7 @@ class _CustomTagWithPath(_CustomTag, ABC):
         source_file: Path,
         *,
         resolve_tags: bool,
-    ) -> JSONObj | Iterable[JSONVal]:
+    ) -> JSONObj | JSONArr:
         """Load the data from the path.
 
         Args:
@@ -72,7 +71,7 @@ class _CustomTagWithPath(_CustomTag, ABC):
             resolve_tags (bool): Whether to resolve tags in the loaded data.
 
         Returns:
-            JSONObj | Iterable[JSONVal]: The data from the path.
+            JSONObj | JSONArr: The data from the path.
         """
         raise NotImplementedError
 
@@ -92,7 +91,7 @@ class Include(_CustomTagWithPath):
         source_file: Path,
         *,
         resolve_tags: bool,
-    ) -> JSONObj | Iterable[JSONVal]:
+    ) -> JSONObj | JSONArr:
         """Load the data from the path.
 
         Args:
@@ -100,7 +99,7 @@ class Include(_CustomTagWithPath):
             resolve_tags (bool): Whether to resolve tags in the loaded data.
 
         Returns:
-            JSONObj | Iterable[JSONVal]: The data from the path.
+            JSONObj | JSONArr: The data from the path.
         """
         return load_yaml(source_file / self.path, resolve_tags=resolve_tags)
 
@@ -369,7 +368,7 @@ def subclasses_recursive(cls: type[_CustomTag]) -> tuple[type[_CustomTag], ...]:
     return tuple(direct + indirect)
 
 
-def load_yaml(path: Path, *, resolve_tags: bool = False) -> JSONObj | Iterable[JSONVal]:
+def load_yaml(path: Path, *, resolve_tags: bool = False) -> JSONObj | JSONArr:
     """Load a YAML file.
 
     Args:
@@ -378,17 +377,17 @@ def load_yaml(path: Path, *, resolve_tags: bool = False) -> JSONObj | Iterable[J
             Defaults to False.
 
     Returns:
-        JSONObj | Iterable[JSONVal]: The content of the YAML file as a JSON object or
+        JSONObj | JSONArr: The content of the YAML file as a JSON object or
             iterable of JSON values.
     """
     content = cast(
-        JSONObj | Iterable[JSONVal],
+        JSONObj | JSONArr,
         load(path.read_text(), Loader=HAYamlLoader),  # noqa: S506
     )
 
     if resolve_tags:
-        traverse_dict(
-            content,  # type: ignore[arg-type]
+        process_json_object(
+            content,
             target_type=_CustomTag,
             target_processor_func=lambda tag, **_: tag.resolve(  # type: ignore[arg-type]
                 path.parent,

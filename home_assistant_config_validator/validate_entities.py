@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from pathlib import Path
 from re import escape, sub
 from typing import TypedDict
 
-from wg_utilities.functions.json import JSONObj, JSONVal
+from wg_utilities.functions.json import JSONArr, JSONObj, JSONVal
 
 from home_assistant_config_validator.const import (
     CUSTOM_VALIDATIONS,
@@ -203,7 +202,7 @@ class ValidatorConfig:
             ]
 
         for file in domain_dir_path.rglob("*.yaml"):
-            entity_yaml: JSONObj | Iterable[JSONVal] = load_yaml(file)
+            entity_yaml: JSONObj | JSONArr = load_yaml(file)
 
             file_issues: list[Exception] = self.run_custom_validations(
                 domain_dir_path=domain_dir_path,
