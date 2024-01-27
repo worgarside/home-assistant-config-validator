@@ -249,6 +249,7 @@ class IncludeDirNamed(_CustomTagWithPath):
     """
 
     TAG: ClassVar[Literal["!include_dir_named"]] = "!include_dir_named"
+    path: PurePath
 
     def resolve(self, source_file: Path, *, resolve_tags: bool) -> JSONObj:
         """Load the data from the directory.
