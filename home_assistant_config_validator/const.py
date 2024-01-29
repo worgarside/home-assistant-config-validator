@@ -217,9 +217,11 @@ def check_known_entity_usages(
 
 
 def format_output(
-    data: dict[str, dict[str, list[Exception]]]
-    | dict[str, list[Exception]]
-    | list[Exception],
+    data: (
+        dict[str, dict[str, list[Exception]]]
+        | dict[str, list[Exception]]
+        | list[Exception]
+    ),
     _indent: int = 0,
 ) -> str:
     """Format output for better readability.
