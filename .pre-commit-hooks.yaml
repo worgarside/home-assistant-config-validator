@@ -1,4 +1,16 @@
 ---
+  - id: generate-readme
+    name: Home Assistant README Generator
+    description: generate a README for the Home Assistant packages
+    entry: poetry run generate-readme
+    language: python
+    args: []
+    additional_dependencies:
+      - poetry
+    always_run: true
+    require_serial: true
+    pass_filenames: false
+
   - id: validate-entities
     name: Home Assistant Core Configuration Validator
     description: Validate the Home Assistant entities directory
