@@ -320,6 +320,8 @@ def main() -> None:
     for pkg_file in sorted(packages_tag.absolute_path.glob("*.yaml")):
         readme += f"\n\n{Package.by_name(pkg_file.stem).readme_section}"
 
+    readme = readme.rstrip() + "\n"
+
     PACKAGES_DIR.joinpath("README.md").write_text(readme)
 
     LOGGER.info("README.md generated in %s", PACKAGES_DIR)
