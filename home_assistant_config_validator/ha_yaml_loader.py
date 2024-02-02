@@ -23,7 +23,7 @@ from home_assistant_config_validator.const import NULL_PATH, REPO_PATH
 from home_assistant_config_validator.exception import FileContentTypeError
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel("INFO")
 add_stream_handler(LOGGER)
 
 F = TypeVar("F", JSONObj, list[JSONObj])
