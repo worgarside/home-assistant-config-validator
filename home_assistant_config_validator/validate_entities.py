@@ -219,9 +219,9 @@ class ValidatorConfig:
             )
 
             if file_issues:
-                self._domain_issues[
-                    file.relative_to(REPO_PATH).as_posix()
-                ] = file_issues
+                self._domain_issues[file.relative_to(REPO_PATH).as_posix()] = (
+                    file_issues
+                )
 
     @property
     def domain_issues(self: ValidatorConfig) -> dict[str, list[Exception]]:
