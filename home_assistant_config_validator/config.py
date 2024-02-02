@@ -97,9 +97,9 @@ class ShouldMatchFilepathItem(TypedDict):
 class ParserConfig(Config):
     """Dataclass for a domain's parser configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[
-        Literal[ConfigurationType.PARSER]
-    ] = ConfigurationType.PARSER
+    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.PARSER]] = (
+        ConfigurationType.PARSER
+    )
 
     package_name: str
 
@@ -130,9 +130,9 @@ class ParserConfig(Config):
 class ValidationConfig(Config):
     """Dataclass for a domain's validator configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[
-        Literal[ConfigurationType.VALIDATION]
-    ] = ConfigurationType.VALIDATION
+    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.VALIDATION]] = (
+        ConfigurationType.VALIDATION
+    )
 
     package_name: str
 
@@ -299,9 +299,9 @@ class ValidationConfig(Config):
             )
 
             if file_issues:
-                self._package_issues[
-                    file.relative_to(REPO_PATH).as_posix()
-                ] = file_issues
+                self._package_issues[file.relative_to(REPO_PATH).as_posix()] = (
+                    file_issues
+                )
 
     @property
     def package_issues(self) -> dict[str, list[Exception]]:
@@ -317,9 +317,9 @@ class ValidationConfig(Config):
 class DocumentationConfig(Config):
     """Dataclass for a domain's documentation configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[
-        Literal[ConfigurationType.DOCUMENTATION]
-    ] = ConfigurationType.DOCUMENTATION
+    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.DOCUMENTATION]] = (
+        ConfigurationType.DOCUMENTATION
+    )
 
     package_name: str
 
