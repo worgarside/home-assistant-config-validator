@@ -292,7 +292,7 @@ class ReadmeEntity:
 
         if f">{self.entity_id}<" not in self.header:
             lines.append(
-                f"  ##### Entity ID: {self.markdown_format(self.entity_id, code=True)}",
+                f"  ##### Entity ID: {self.markdown_format(self.entity_id, code=True)}\n",
             )
 
         lines.append(self.description)
