@@ -14,7 +14,12 @@ from os import getenv
 from pathlib import Path
 from typing import TypedDict
 
-from wg_utilities.functions.json import JSONObj, JSONVal, process_list, traverse_dict
+from wg_utilities.functions.json import (
+    InvalidJsonObjectError,
+    JSONArr,
+    JSONObj,
+    process_json_object,
+)
 
 # Args
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd().absolute().as_posix()))
@@ -122,7 +127,12 @@ def _get_known_entities() -> dict[Domain, KnownEntityType]:
     # Special case
     known_entities[Domain.AUTOMATION] = {
         "names": [
-            ".".join((Domain.AUTOMATION, load_yaml(automation_file).get("id", "")))  # type: ignore[attr-defined]
+            ".".join(
+                (
+                    Domain.AUTOMATION,
+                    str(load_yaml(automation_file).get("id", "")),  # type: ignore[union-attr]
+                ),
+            )
             for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
@@ -132,15 +142,16 @@ def _get_known_entities() -> dict[Domain, KnownEntityType]:
 
 
 def check_known_entity_usages(
-    entity_yaml: JSONObj | Iterable[JSONVal],
+    entity_yaml: JSONObj | JSONArr,
     entity_keys: Iterable[str] = ("entity_id",),
 ) -> list[Exception]:
     """Check that all entities used in the config YAML are defined elsewhere.
 
-    This only applies to the daomins which are solely defined in YAML files; any
+    This only applies to the domains which are solely defined in YAML files; any
     domains which have entities that can be defined through the
+
     Args:
-        entity_yaml (JSONObj | Iterable[JSONVal]): The entity's YAML
+        entity_yaml (JSONObj | JSONArr): The entity's YAML
         entity_keys (Iterable[str], optional): The keys to check for entities. Defaults
             to ("entity_id",).
 
@@ -153,7 +164,7 @@ def check_known_entity_usages(
     known_entity_issues: list[Exception] = []
 
     def _callback(
-        string: str,
+        value: str,
         *,
         dict_key: str | None = None,
         list_index: int | None = None,
@@ -163,55 +174,43 @@ def check_known_entity_usages(
         _ = list_index
 
         if not dict_key or dict_key not in entity_keys:
-            return string
+            return value
 
         for domain, entity_comparands in _get_known_entities().items():
-            if (not entity_comparands["name_pattern"].fullmatch(string)) or (
+            if (not entity_comparands["name_pattern"].fullmatch(value)) or (
                 dict_key == "service"
                 and (
                     domain not in (Domain.SCRIPT, Domain.SHELL_COMMAND)
-                    or string.split(".")[1] in KNOWN_SERVICES.get(domain, ())
+                    or value.split(".")[1] in KNOWN_SERVICES.get(domain, ())
                 )
             ):
                 continue
 
-            if string not in entity_comparands["names"]:
+            if value not in entity_comparands["names"]:
                 known_entity_issues.append(
                     ValueError(
                         " ".join(
                             (
                                 domain.replace("_", " ").title(),
                                 dict_key.replace("_", " ").title(),
-                                string,
+                                value,
                                 "is not defined",
                             ),
                         ),
                     ),
                 )
 
-        return string
+        return value
 
-    if isinstance(entity_yaml, dict):
-        traverse_dict(
+    try:
+        process_json_object(
             entity_yaml,
             target_type=str,
-            target_processor_func=_callback,  # type: ignore[arg-type]
+            target_processor_func=_callback,
             pass_on_fail=False,
         )
-    elif isinstance(entity_yaml, list):
-        process_list(
-            entity_yaml,
-            target_type=str,
-            target_processor_func=_callback,  # type: ignore[arg-type]
-            pass_on_fail=False,
-        )
-    else:
-        known_entity_issues.append(
-            TypeError(
-                "Expected `entity_yaml` to be a dict or iterable, not"
-                f" {type(entity_yaml)!r}",
-            ),
-        )
+    except InvalidJsonObjectError as exc:
+        known_entity_issues.append(exc)
 
     return known_entity_issues
 
@@ -240,13 +239,12 @@ def format_output(
 
     if isinstance(data, dict):
         for key, value in data.items():
-            if _indent == 0:
+            if not _indent:
                 output += "\n"
-            output += ("  " * _indent + str(key)) + "\n"
-            output += format_output(value, _indent + 2)
+            output += f"{' ' * _indent}{key}\n{format_output(value, _indent + 2)}"
     elif isinstance(data, list):
         for exc in data:
-            output += ("  " * _indent) + f"{type(exc).__name__}: {exc!s}" + "\n"
+            output += f"{'  ' * _indent}{type(exc).__name__}: {exc!s}\n"
     else:
         raise TypeError(f"Unexpected type {type(data).__name__}")  # noqa: TRY003
 
