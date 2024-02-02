@@ -322,6 +322,8 @@ def main() -> None:
 
     PACKAGES_DIR.joinpath("README.md").write_text(readme)
 
+    LOGGER.info("README.md generated in %s", PACKAGES_DIR)
+
 
 if __name__ == "__main__":
     main()
