@@ -142,3 +142,8 @@ repos:
     rev: 1.7.0
     hooks:
       - id: poetry-check
+
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.10
+    hooks:
+      - id: vulture

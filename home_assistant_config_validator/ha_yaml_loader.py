@@ -3,20 +3,45 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Generator
+from dataclasses import dataclass, field
 from functools import lru_cache
+from logging import getLogger
 from pathlib import Path, PurePath
-from typing import Any, ClassVar, Literal, Self, cast
+from typing import Any, ClassVar, Generic, Literal, Self, TypeVar, cast, get_origin
 
-from wg_utilities.functions.json import JSONArr, JSONObj, JSONVal, process_json_object
+from wg_utilities.functions.json import (
+    JSONObj,
+    JSONVal,
+    TargetProcessorFunc,
+    process_json_object,
+)
+from wg_utilities.loggers import add_stream_handler
 from yaml import SafeLoader, ScalarNode, load
 
-from home_assistant_config_validator.const import REPO_PATH
+from home_assistant_config_validator.const import NULL_PATH, REPO_PATH
+from home_assistant_config_validator.exception import FileContentTypeError
+
+LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")
+add_stream_handler(LOGGER)
+
+F = TypeVar("F", JSONObj, list[JSONObj])
+
+ResTo = TypeVar("ResTo", bound=JSONVal)
+ResToPath = TypeVar("ResToPath", JSONObj, list[JSONObj], JSONObj | list[JSONObj])
+
+
+class HAYamlLoader(SafeLoader):
+    """A YAML loader that supports custom Home Assistant tags."""
 
 
 @dataclass
-class _CustomTag(ABC):
+class Tag(ABC, Generic[ResTo]):
+    RESOLVES_TO: ClassVar[type]
     TAG: ClassVar[str]
+
+    file: Path = field(default=NULL_PATH)
 
     @classmethod
     def construct(
@@ -37,7 +62,7 @@ class _CustomTag(ABC):
             _CustomTag: The constructed custom tag
         """
         # pylint: disable=too-many-function-args
-        return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[call-arg]
+        return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[arg-type]
 
     @abstractmethod
     def resolve(
@@ -45,53 +70,30 @@ class _CustomTag(ABC):
         source_file: Path,
         *,
         resolve_tags: bool,
-    ) -> JSONObj | JSONArr | JSONVal:
+    ) -> ResTo:
         """Load the data for the tag."""
         raise NotImplementedError
 
-
-class _CustomTagWithPath(_CustomTag, ABC):
-    path: PurePath
-
-    def __post_init__(self) -> None:
-        """Post-initialisation."""
-        self.path = PurePath(self.path)
-
-    @abstractmethod
-    def resolve(
-        self,
-        source_file: Path,
-        *,
-        resolve_tags: bool,
-    ) -> JSONObj | JSONArr:
-        """Load the data from the path.
-
-        Args:
-            source_file (Path): The path to load the data relative to.
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            JSONObj | JSONArr: The data from the path.
-        """
-        raise NotImplementedError
-
-    def __hash__(self) -> int:
-        return hash(self.path)
+    def resolves_to(self, __type: type, /) -> bool:
+        """Return whether the tag resolves to a given type."""
+        return __type == self.RESOLVES_TO
 
 
 @dataclass
-class Include(_CustomTagWithPath):
+class Include(Tag[JSONObj | list[JSONObj]]):
     """Return the content of a file."""
 
-    TAG: ClassVar[Literal["!include"]] = "!include"
     path: PurePath
+
+    TAG: ClassVar[Literal["!include"]] = "!include"
+    file: Path = field(init=False)
 
     def resolve(
         self,
-        source_file: Path,
+        source_file: Path = NULL_PATH,
         *,
         resolve_tags: bool,
-    ) -> JSONObj | JSONArr:
+    ) -> JSONObj | list[JSONObj]:
         """Load the data from the path.
 
         Args:
@@ -101,215 +103,31 @@ class Include(_CustomTagWithPath):
         Returns:
             JSONObj | JSONArr: The data from the path.
         """
-        return load_yaml(source_file / self.path, resolve_tags=resolve_tags)
+        if source_file == NULL_PATH:
+            source_file = self.file
+        elif not source_file.is_file():
+            raise FileNotFoundError(source_file)
+
+        return load_yaml(
+            source_file.parent / self.path,
+            resolve_tags=resolve_tags,
+        )
 
 
 @dataclass
-class IncludeDirList(_CustomTagWithPath):
-    """Return the content of a directory as a list.
-
-    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
-
-    !include_dir_list will return the content of a directory as a list with each file
-    content being an entry in the list. The list entries are ordered based on the
-    alphanumeric ordering of the names of the files.
-    """
-
-    TAG: ClassVar[Literal["!include_dir_list"]] = "!include_dir_list"
-    path: PurePath
-
-    def resolve(self, source_file: Path, *, resolve_tags: bool) -> list[JSONObj]:
-        """Load the data from the directory.
-
-        Args:
-            source_file (Path): The file which the tag is in (i.e. where to load the
-                path relative to): The path to load the data relative to.
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            list[JSONObj]:the content of a directory as a list with each file content
-                being an entry in the list
-
-        Raises:
-            TypeError: If any of the files in the directory do not contain a dictionary
-        """
-        data: list[JSONObj] = []
-
-        for file in sorted((source_file / self.path).rglob("*.yaml")):
-            file_content = load_yaml(file, resolve_tags=resolve_tags)
-
-            if isinstance(file_content, dict):
-                data.append(file_content)
-            else:
-                raise TypeError(  # noqa: TRY003
-                    f"File {file} contains a {type(file_content)}, but"
-                    "`!include_dir_list` expects each file to contain a dictionary",
-                )
-
-        return data
-
-
-@dataclass
-class IncludeDirMergeList(_CustomTagWithPath):
-    """Return the content of a directory as a list by combining all items.
-
-    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
-
-    !include_dir_merge_list will return the content of a directory as a list by merging
-    all files (which should contain a list) into 1 big list.
-    """
-
-    TAG: ClassVar[Literal["!include_dir_merge_list"]] = "!include_dir_merge_list"
-    path: PurePath
-
-    def resolve(self, source_file: Path, *, resolve_tags: bool) -> list[JSONObj]:
-        """Load the data from the directory.
-
-        Args:
-            source_file (Path): The file which the tag is in (i.e. where to load the
-                path relative to)
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            list[JSONObj]: The content of a directory as a list by merging all files
-                (which should contain a list) into 1 big list.
-
-        Raises:
-            TypeError: If any of the files in the directory do not contain a list
-        """
-        data: list[JSONObj] = []
-
-        for file in sorted((source_file / self.path).rglob("*.yaml")):
-            file_content = load_yaml(file, resolve_tags=resolve_tags)
-
-            if isinstance(file_content, list):
-                data.extend(file_content)
-            else:
-                raise TypeError(  # noqa: TRY003
-                    f"File {file} contains a {type(file_content)}, but"
-                    "`!include_dir_merge_list` expects each file to contain a list",
-                )
-
-        return data
-
-
-@dataclass
-class IncludeDirMergeNamed(_CustomTagWithPath):
-    """Return the content of a directory as a dictionary.
-
-    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
-
-    !include_dir_merge_named will return the content of a directory as a dictionary by
-    loading each file and merging it into 1 big dictionary.
-    """
-
-    TAG: ClassVar[Literal["!include_dir_merge_named"]] = "!include_dir_merge_named"
-    path: PurePath
-
-    def resolve(self, source_file: Path, *, resolve_tags: bool) -> JSONObj:
-        """Load the data from the directory.
-
-        Args:
-            source_file (Path): The file which the tag is in (i.e. where to load the
-                path relative to)
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            JSONObj: The content of a directory as a dictionary by merging all files
-                (which should contain a dictionary) into 1 big dictionary.
-
-        Raises:
-            TypeError: If any of the files in the directory do not contain a dictionary
-        """
-        data = {}
-
-        for file in sorted((source_file / self.path).rglob("*.yaml")):
-            file_content = load_yaml(file, resolve_tags=resolve_tags)
-
-            if isinstance(file_content, dict):
-                data.update(file_content)
-            else:
-                raise TypeError(  # noqa: TRY003
-                    f"File {file.as_posix()} contains a {type(file_content)}, but"
-                    "`!include_dir_merge_named` expects each file to contain a"
-                    " dictionary",
-                )
-
-        return data
-
-
-@dataclass
-class IncludeDirNamed(_CustomTagWithPath):
-    """Return the content of a directory as a dictionary.
-
-    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
-
-    !include_dir_named will return the content of a directory as a dictionary which
-    maps filename => content of file.
-    """
-
-    TAG: ClassVar[Literal["!include_dir_named"]] = "!include_dir_named"
-    path: PurePath
-
-    def resolve(self, source_file: Path, *, resolve_tags: bool) -> JSONObj:
-        """Load the data from the directory.
-
-        Args:
-            source_file (Path): The file which the tag is in (i.e. where to load the
-                path relative to): The path to load the data relative to.
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            JSONObj: The content of a directory as a dictionary with each file content
-                being a key in the dictionary. The key is the filename without the
-                extension.
-
-        Raises:
-            TypeError: If any of the files in the directory do not contain a single
-                object
-        """
-        data: JSONObj = {}
-
-        for file in sorted(source_file.joinpath(self.path).rglob("*.yaml")):
-            file_content = load_yaml(file, resolve_tags=resolve_tags)
-
-            if isinstance(file_content, dict):
-                data[file.stem] = file_content
-            else:
-                raise TypeError(  # noqa: TRY003
-                    f"File {file.as_posix()} contains a list, but `!include_dir_list`"
-                    " expects each file to contain a single object",
-                )
-
-        return data
-
-
-@dataclass
-class Secret(_CustomTag):
+class Secret(Tag[str]):
     """Return the value of a secret.
 
     https://www.home-assistant.io/docs/configuration/secrets#using-secretsyaml
     """
 
     secret_id: str
+    file: Path = field(init=False)
 
     FAKE_SECRETS_PATH: ClassVar[Path] = REPO_PATH / "secrets.fake.yaml"
     TAG: ClassVar[Literal["!secret"]] = "!secret"
 
-    @classmethod
-    def get_value_callback(
-        cls,
-        secret: Secret,
-        *,
-        dict_key: str | None = None,
-        list_index: int | None = None,
-    ) -> JSONVal:
-        """Get a substitute value for a secret from the ID."""
-        _ = dict_key, list_index
-
-        return secret.get_fake_value()
-
-    def resolve(self, *_: Any, **__: Any) -> JSONVal:
+    def resolve(self, *_: Any, **__: Any) -> str:
         """Get a substitute value for a secret from the ID."""
         return self.get_fake_value()
 
@@ -328,7 +146,7 @@ class Secret(_CustomTag):
             ValueError: If the secret is not found in the file and no fallback value
                 is provided.
         """
-        fake_secrets = load_yaml(self.FAKE_SECRETS_PATH)
+        fake_secrets = load_yaml(self.FAKE_SECRETS_PATH, resolve_tags=False)
 
         if isinstance(fake_secrets, dict):
             if (
@@ -348,12 +166,279 @@ class Secret(_CustomTag):
         )
 
 
-class HAYamlLoader(SafeLoader):
-    """A YAML loader that supports custom Home Assistant tags."""
+class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
+    FILE_CONTENT_TYPE: ClassVar[type]
+    RESOLVES_TO: ClassVar[type]
+    path: PurePath
+
+    def __post_init__(self) -> None:
+        """Post-initialisation."""
+        self.path = PurePath(self.path)
+
+    @classmethod
+    def attach_file_to_tag(
+        cls,
+        file: Path,
+    ) -> TargetProcessorFunc[Tag[ResToPath]]:
+        def _cb(
+            value: Tag[ResToPath],
+            *,
+            dict_key: str | None = None,
+            list_index: int | None = None,
+        ) -> Tag[ResToPath]:
+            _ = dict_key, list_index
+            if not hasattr(value, "file") or not value.file or value.file == NULL_PATH:
+                value.file = file
+
+            return value
+
+        return _cb
+
+    @abstractmethod
+    def _add_file_content_to_data(
+        self,
+        data: ResToPath,
+        file: Path,
+        file_content: F,
+    ) -> ResToPath:
+        """Add the file content to the data."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_entities_from_file_content(
+        self,
+        file: Path,
+        file_content: F,
+    ) -> Generator[JSONObj, None, None]:
+        """Get the entities from the file content."""
+        raise NotImplementedError
+
+    def resolve(
+        self,
+        source_file: Path = NULL_PATH,
+        *,
+        resolve_tags: bool,
+    ) -> ResToPath:
+        if source_file == NULL_PATH:
+            source_file = self.file
+        elif not source_file.is_file():
+            raise FileNotFoundError(source_file)
+
+        data: ResToPath = self.RESOLVES_TO()
+
+        for file in sorted((source_file.parent / self.path).rglob("*.yaml")):
+            file_content: F = load_yaml(
+                file,
+                resolve_tags=resolve_tags,
+                validate_content_type=self.FILE_CONTENT_TYPE,
+            )
+
+            if not isinstance(file_content, self.FILE_CONTENT_TYPE):
+                raise TypeError(  # noqa: TRY003
+                    f"File {file} contains a {type(file_content)}, but"
+                    f"`{self.TAG}` expects each file to contain a {self.FILE_CONTENT_TYPE}",
+                )
+
+            if resolve_tags is False:
+                # If tags aren't being resolved, attach a file path to them for
+                # resolution later
+                process_json_object(  # type: ignore[misc]
+                    file_content,
+                    target_type=TagWithPath,
+                    target_processor_func=TagWithPath.attach_file_to_tag(file),
+                    pass_on_fail=False,
+                    log_op_func_failures=False,
+                    single_keys_to_remove=["sensor"],
+                )
+
+            data = self._add_file_content_to_data(data, file, file_content)
+
+        return data
+
+    @property
+    def entities(self) -> Generator[JSONObj, None, None]:
+        for file in sorted(self.absolute_path.rglob("*.yaml")):
+            file_content: F = load_yaml(
+                file,
+                resolve_tags=False,
+                validate_content_type=self.FILE_CONTENT_TYPE,
+            )
+
+            if not isinstance(file_content, self.FILE_CONTENT_TYPE):
+                raise TypeError(  # noqa: TRY003
+                    f"File {file} contains a {type(file_content)}, but"
+                    f"`{self.TAG}` expects each file to contain a {self.FILE_CONTENT_TYPE}",
+                )
+
+            yield from self._get_entities_from_file_content(file, file_content)
+
+    @property
+    def absolute_path(self) -> Path:
+        return (self.file.parent / self.path).resolve()
+
+    def __str__(self) -> str:
+        return f"{self.TAG} {self.path.as_posix()}"
+
+    def __hash__(self) -> int:
+        return hash(self.path)
+
+
+@dataclass
+class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
+    """Return the content of a directory as a list.
+
+    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
+
+    !include_dir_list will return the content of a directory as a list with each file
+    content being an entry in the list. The list entries are ordered based on the
+    alphanumeric ordering of the names of the files.
+    """
+
+    path: PurePath
+    file: Path = field(init=False)
+
+    TAG: ClassVar[Literal["!include_dir_list"]] = "!include_dir_list"
+
+    FILE_CONTENT_TYPE: ClassVar[type] = dict
+    RESOLVES_TO: ClassVar[type] = list
+
+    def _add_file_content_to_data(
+        self,
+        data: list[JSONObj],
+        file: Path,
+        file_content: JSONObj,
+    ) -> list[JSONObj]:
+        file_content["__file__"] = file.resolve()
+        data.append(file_content)
+        return data
+
+    def _get_entities_from_file_content(
+        self,
+        file: Path,
+        file_content: JSONObj,
+    ) -> Generator[JSONObj, None, None]:
+        file_content["__file__"] = file.resolve()
+
+        yield file_content
+
+
+@dataclass
+class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
+    """Return the content of a directory as a list by combining all items.
+
+    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
+
+    !include_dir_merge_list will return the content of a directory as a list by merging
+    all files (which should contain a list) into 1 big list.
+    """
+
+    path: PurePath
+    file: Path = field(init=False)
+
+    FILE_CONTENT_TYPE: ClassVar[type] = list
+    RESOLVES_TO: ClassVar[type] = list
+    TAG: ClassVar[Literal["!include_dir_merge_list"]] = "!include_dir_merge_list"
+
+    def _add_file_content_to_data(
+        self,
+        data: list[JSONObj],
+        file: Path,
+        file_content: list[JSONObj],
+    ) -> list[JSONObj]:
+        for elem in file_content:
+            elem["__file__"] = file.resolve()
+
+        data.extend(file_content)
+        return data
+
+    def _get_entities_from_file_content(
+        self,
+        file: Path,
+        file_content: list[JSONObj],
+    ) -> Generator[JSONObj, None, None]:
+        for elem in file_content:
+            elem["__file__"] = file.resolve()
+
+            yield elem
+
+
+@dataclass
+class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
+    """Return the content of a directory as a dictionary.
+
+    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
+
+    !include_dir_merge_named will return the content of a directory as a dictionary by
+    loading each file and merging it into 1 big dictionary.
+    """
+
+    path: PurePath
+    file: Path = field(init=False)
+
+    FILE_CONTENT_TYPE: ClassVar[type] = dict
+    RESOLVES_TO: ClassVar[type] = dict
+    TAG: ClassVar[Literal["!include_dir_merge_named"]] = "!include_dir_merge_named"
+
+    def _add_file_content_to_data(
+        self,
+        data: JSONObj,
+        file: Path,
+        file_content: JSONObj,
+    ) -> JSONObj:
+        file_content["__file__"] = file.resolve()
+        data.update(file_content)
+        return data
+
+    def _get_entities_from_file_content(
+        self,
+        file: Path,
+        file_content: JSONObj,
+    ) -> Generator[JSONObj, None, None]:
+        file_content["__file__"] = file.resolve()
+        yield file_content
+
+
+@dataclass
+class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
+    """Return the content of a directory as a dictionary.
+
+    https://www.home-assistant.io/docs/configuration/splitting_configuration/#advanced-usage
+
+    !include_dir_named will return the content of a directory as a dictionary which
+    maps filename => content of file.
+    """
+
+    path: PurePath
+    file: Path = field(init=False)
+
+    FILE_CONTENT_TYPE: ClassVar[type] = dict
+    RESOLVES_TO: ClassVar[type] = dict
+    TAG: ClassVar[Literal["!include_dir_named"]] = "!include_dir_named"
+
+    def _add_file_content_to_data(
+        self,
+        data: JSONObj,
+        file: Path,
+        file_content: JSONObj,
+    ) -> JSONObj:
+        file_content["__file__"] = file.resolve()
+        data[file.stem] = file_content
+        return data
+
+    def _get_entities_from_file_content(
+        self,
+        file: Path,
+        file_content: JSONObj,
+    ) -> Generator[JSONObj, None, None]:
+        file_content["__file__"] = file.resolve()
+
+        yield file_content
 
 
 @lru_cache
-def subclasses_recursive(cls: type[_CustomTag]) -> tuple[type[_CustomTag], ...]:
+def subclasses_recursive(
+    cls: type[Tag[Any]],
+) -> tuple[type[Tag[Any]], ...]:
     """Get all subclasses of a class recursively.
 
     Args:
@@ -362,38 +447,58 @@ def subclasses_recursive(cls: type[_CustomTag]) -> tuple[type[_CustomTag], ...]:
     Returns:
         list[type[_CustomTag]]: A list of all subclasses of the class.
     """
-    indirect: list[type[_CustomTag]] = []
+    indirect: list[type[Tag[Any]]] = []
     for subclass in (direct := cls.__subclasses__()):
         indirect.extend(subclasses_recursive(subclass))
 
     return tuple(direct + indirect)
 
 
-def load_yaml(path: Path, *, resolve_tags: bool = False) -> JSONObj | JSONArr:
+def load_yaml(
+    path: Path,
+    *,
+    resolve_tags: bool,
+    validate_content_type: type[F] | None = None,
+) -> F:
     """Load a YAML file.
 
     Args:
         path (Path): The path to the YAML file.
         resolve_tags (bool, optional): Whether to resolve tags in the YAML file.
             Defaults to False.
+        validate_content_type (type[F] | None, optional): The type to validate the
+            content of the YAML file against. Defaults to None.
 
     Returns:
-        JSONObj | JSONArr: The content of the YAML file as a JSON object or
-            iterable of JSON values.
+        JSONObj: The content of the YAML file as a JSON object
     """
     content = cast(
-        JSONObj | JSONArr,
+        F,
         load(path.read_text(), Loader=HAYamlLoader),  # noqa: S506
     )
+
+    if validate_content_type is not None and not issubclass(
+        type(content),
+        get_origin(validate_content_type) or validate_content_type,
+    ):
+        raise FileContentTypeError(path, content, validate_content_type)
 
     if resolve_tags:
         process_json_object(
             content,
-            target_type=_CustomTag,
+            target_type=Tag,
             target_processor_func=lambda tag, **_: tag.resolve(  # type: ignore[arg-type]
-                path.parent,
+                path,
                 resolve_tags=resolve_tags,
             ),
+            pass_on_fail=False,
+            log_op_func_failures=False,
+        )
+    else:
+        process_json_object(  # type: ignore[misc]
+            content,
+            target_type=TagWithPath,
+            target_processor_func=TagWithPath.attach_file_to_tag(path),
             pass_on_fail=False,
             log_op_func_failures=False,
         )
@@ -407,19 +512,16 @@ def add_custom_tags_to_loader(loader: type[SafeLoader]) -> None:
     Args:
         loader (type[SafeLoader]): The YAML loader to add the custom tags to.
     """
-    for tag_class in subclasses_recursive(_CustomTag):
-        if not tag_class.__name__.startswith("_"):
+    for tag_class in subclasses_recursive(Tag):
+        try:
             loader.add_constructor(tag_class.TAG, tag_class.construct)
+            LOGGER.debug("Added constructor for %s", tag_class.TAG)
+        except AttributeError:
+            continue
 
 
 add_custom_tags_to_loader(HAYamlLoader)
 
 __all__ = [
-    "Include",
-    "IncludeDirList",
-    "IncludeDirMergeList",
-    "IncludeDirMergeNamed",
-    "IncludeDirNamed",
-    "Secret",
     "load_yaml",
 ]

@@ -9,10 +9,9 @@ from argparse import ArgumentParser
 from collections.abc import Iterable
 from enum import StrEnum
 from functools import lru_cache
-from json import loads
 from os import getenv
 from pathlib import Path
-from typing import TypedDict
+from typing import Final, TypedDict
 
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
@@ -21,71 +20,68 @@ from wg_utilities.functions.json import (
     process_json_object,
 )
 
-# Args
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd().absolute().as_posix()))
+
+# Args
 
 parser = ArgumentParser(description="Custom Component Parser")
 
 parser.add_argument(
-    "-c",
-    "--config-path",
+    "-p",
+    "--pch-config-path",
     type=Path,
     required=False,
     help="Path to custom validations configuration file.",
     default=REPO_PATH / "config_validator.json",
 )
 
+parser.add_argument(
+    "-a",
+    "--validate-all",
+    action="store_true",
+    help="Validate all packages (requires exactly one configuration per package).",
+    default=False,
+)
+
+parser.add_argument(
+    "-c",
+    "--ha-config-path",
+    type=Path,
+    required=False,
+    help="Path to Home Assistant configuration.yaml",
+    default=REPO_PATH / "configuration.yaml",
+)
+
 args, _ = parser.parse_known_args()
 
-CUSTOM_VALIDATIONS = loads(args.config_path.read_text())["customValidators"]
+
+PCH_CONFIG: Path = args.pch_config_path
+VALIDATE_ALL_PACKAGES: bool = args.validate_all
+HA_CONFIG: Path = args.ha_config_path
 
 ENTITIES_DIR = REPO_PATH / "entities"
-INTEGRATIONS_DIR = REPO_PATH / "integrations"
+PACKAGES_DIR = REPO_PATH / "integrations"
 LOVELACE_DIR = REPO_PATH / "lovelace"
 LOVELACE_ROOT_FILE = REPO_PATH / "ui-lovelace.yaml"
 
-
-class Domain(StrEnum):
-    AUTOMATION = "automation"
-    BINARY_SENSOR = "binary_sensor"
-    BUTTON = "button"
-    CALENDAR = "calendar"
-    CAMERA = "camera"
-    COVER = "cover"
-    DEVICE_TRACKER = "device_tracker"
-    EVENT = "event"
-    FAN = "fan"
-    INPUT_BOOLEAN = "input_boolean"
-    INPUT_BUTTON = "input_button"
-    INPUT_DATETIME = "input_datetime"
-    INPUT_NUMBER = "input_number"
-    INPUT_SELECT = "input_select"
-    INPUT_TEXT = "input_text"
-    LIGHT = "light"
-    MEDIA_PLAYER = "media_player"
-    NUMBER = "number"
-    PERSON = "person"
-    REMOTE = "remote"
-    SCRIPT = "script"
-    SELECT = "select"
-    SENSOR = "sensor"
-    SHELL_COMMAND = "shell_command"
-    SUN = "sun"
-    SWITCH = "switch"
-    UPDATE = "update"
-    VACUUM = "vacuum"
-    VAR = "var"
-    WEATHER = "weather"
-    ZONE = "zone"
+NULL_PATH: Final[Path] = Path("/dev/null")
 
 
 KNOWN_SERVICES = {
-    Domain.SCRIPT: (
+    "script": (
         "reload",
         "turn_off",
         "turn_on",
     ),
 }
+
+
+class ConfigurationType(StrEnum):
+    """Enum for the different types of configurations."""
+
+    DOCUMENTATION = "documentation"
+    PARSER = "parser"
+    VALIDATION = "validation"
 
 
 class KnownEntityType(TypedDict):
@@ -96,11 +92,11 @@ class KnownEntityType(TypedDict):
 
 
 @lru_cache(maxsize=1)
-def _get_known_entities() -> dict[Domain, KnownEntityType]:
+def _get_known_entities() -> dict[str, KnownEntityType]:
     # pylint: disable=import-outside-toplevel
     from home_assistant_config_validator.ha_yaml_loader import load_yaml
 
-    known_entities: dict[Domain, KnownEntityType] = {
+    known_entities: dict[str, KnownEntityType] = {
         domain: {
             "names": [
                 f"{domain}.{entity_file.stem}"
@@ -112,25 +108,25 @@ def _get_known_entities() -> dict[Domain, KnownEntityType]:
             ),
         }
         for domain in (
-            Domain.INPUT_BOOLEAN,
-            Domain.INPUT_BUTTON,
-            Domain.INPUT_DATETIME,
-            Domain.INPUT_NUMBER,
-            Domain.INPUT_SELECT,
-            Domain.INPUT_TEXT,
-            Domain.SCRIPT,
-            Domain.SHELL_COMMAND,
-            Domain.VAR,
+            "input_boolean",
+            "input_button",
+            "input_datetime",
+            "input_number",
+            "input_select",
+            "input_text",
+            "script",
+            "shell_command",
+            "var",
         )
     }
 
     # Special case
-    known_entities[Domain.AUTOMATION] = {
+    known_entities["automation"] = {
         "names": [
             ".".join(
                 (
-                    Domain.AUTOMATION,
-                    str(load_yaml(automation_file).get("id", "")),  # type: ignore[union-attr]
+                    "automation",
+                    str(load_yaml(automation_file, resolve_tags=False).get("id", "")),
                 ),
             )
             for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
@@ -180,7 +176,7 @@ def check_known_entity_usages(
             if (not entity_comparands["name_pattern"].fullmatch(value)) or (
                 dict_key == "service"
                 and (
-                    domain not in (Domain.SCRIPT, Domain.SHELL_COMMAND)
+                    domain not in ("script", "shell_command")
                     or value.split(".")[1] in KNOWN_SERVICES.get(domain, ())
                 )
             ):
@@ -252,9 +248,8 @@ def format_output(
 
 
 __all__ = [
-    "CUSTOM_VALIDATIONS",
     "ENTITIES_DIR",
-    "INTEGRATIONS_DIR",
+    "PACKAGES_DIR",
     "REPO_PATH",
     "format_output",
 ]

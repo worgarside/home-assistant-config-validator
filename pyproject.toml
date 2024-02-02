@@ -13,7 +13,7 @@ validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-wg-utilities = "^5.8.3"
+wg-utilities = {extras = ["logging"], version = "^5.8.3"}
 pytz = "^2024.1"
 pyyaml = "^6.0"
 
@@ -119,3 +119,8 @@ convention = "google"
 
 [tool.ruff.pylint]
 max-args = 6
+
+[tool.vulture]
+min_confidence = 70
+paths = ["home_assistant_config_validator"]
+sort_by_size = true
