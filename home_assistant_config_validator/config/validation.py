@@ -1,85 +1,21 @@
-"""Configuration classes for the Home Assistant Config Validator."""
+"""Configuration for how to validate each Package."""
 
 from __future__ import annotations
 
-from abc import ABC
-from collections.abc import Generator
 from dataclasses import dataclass, field
-from functools import lru_cache
-from json import loads
-from logging import getLogger
 from pathlib import Path
-from re import escape, sub
-from typing import ClassVar, Literal, Self, TypedDict
+from typing import ClassVar, Literal, TypedDict
 
 from wg_utilities.functions.json import JSONArr, JSONObj, JSONVal
-from wg_utilities.loggers import add_stream_handler
 
-from home_assistant_config_validator.const import (
-    ENTITIES_DIR,
-    PCH_CONFIG,
-    REPO_PATH,
-    VALIDATE_ALL_PACKAGES,
-    ConfigurationType,
+from home_assistant_config_validator.utils import (
     check_known_entity_usages,
+    const,
+    load_yaml,
 )
-from home_assistant_config_validator.exception import UserPCHConfigurationError
-from home_assistant_config_validator.ha_yaml_loader import load_yaml
 
-LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
-
-
-def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
-    """Convert a string to be alphanumeric and snake_case.
-
-    Leading/trailing underscores are removed, and double (or more) underscores are
-    replaced with a single underscore. Ignores values within `string` that are also in
-    `ignore_strings`.
-
-    Args:
-        string (str): The string to convert
-        ignore_chars (str, optional): Other characters to ignore. Defaults to None.
-
-    Returns:
-        str: The converted string
-    """
-    return (
-        sub(r"_{2,}", "_", sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", "_", string))
-        .lower()
-        .strip("_")
-    )
-
-
-class Config(ABC):
-    """Base class for configuration classes."""
-
-    CONFIGURATION_TYPE: ClassVar[ConfigurationType]
-    package_name: str
-
-    @classmethod
-    def get_for_package(cls, package_name: str, /) -> Self:
-        """Get the user's configuration for a given domain."""
-        package_config = (
-            _load_user_pch_configuration()
-            .get(package_name, {})
-            .get(cls.CONFIGURATION_TYPE, {})
-        )
-
-        if not isinstance(package_config, dict):
-            raise TypeError(type(package_config))
-
-        if cls is ValidationConfig and VALIDATE_ALL_PACKAGES and not package_config:
-            raise UserPCHConfigurationError(
-                cls.CONFIGURATION_TYPE,
-                package_name,
-                "not found",
-            )
-
-        package_config["package_name"] = package_name
-
-        return cls(**package_config)
+from .base import Config, replace_non_alphanumeric
+from .parser import ParserConfig
 
 
 class ShouldMatchFilepathItem(TypedDict):
@@ -94,44 +30,11 @@ class ShouldMatchFilepathItem(TypedDict):
 
 
 @dataclass
-class ParserConfig(Config):
-    """Dataclass for a domain's parser configuration."""
-
-    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.PARSER]] = (
-        ConfigurationType.PARSER
-    )
-
-    package_name: str
-
-    top_level_keys: list[str] = field(default_factory=list)
-
-    def parse(self, __obj: JSONObj, /) -> JSONObj:
-        """Parse a JSON object."""
-        if self.top_level_keys:
-            __file__ = __obj.pop("__file__", None)
-
-            if (
-                len(__obj) == 1
-                and (only_key := next(iter(__obj.keys()))) in self.top_level_keys
-            ):
-                new_obj: JSONObj = __obj.pop(only_key)  # type: ignore[assignment]
-            else:
-                new_obj = __obj
-
-            if __file__:
-                new_obj["__file__"] = __file__
-
-            return new_obj
-
-        return __obj
-
-
-@dataclass
 class ValidationConfig(Config):
     """Dataclass for a domain's validator configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.VALIDATION]] = (
-        ConfigurationType.VALIDATION
+    CONFIGURATION_TYPE: ClassVar[Literal[const.ConfigurationType.VALIDATION]] = (
+        const.ConfigurationType.VALIDATION
     )
 
     package_name: str
@@ -269,12 +172,12 @@ class ValidationConfig(Config):
         Invalid files are added to the `self._domain_issues` dict, with the file path
         as the key and a list of exceptions as the value.
         """
-        domain_dir_path = ENTITIES_DIR / self.package_name
+        domain_dir_path = const.ENTITIES_DIR / self.package_name
 
         if not domain_dir_path.is_dir():
             self._package_issues["root"] = [
                 ValueError(
-                    f"Directory {domain_dir_path.relative_to(REPO_PATH)} does not exist",
+                    f"Directory {domain_dir_path.relative_to(const.REPO_PATH)} does not exist",
                 ),
             ]
 
@@ -299,7 +202,7 @@ class ValidationConfig(Config):
             )
 
             if file_issues:
-                self._package_issues[file.relative_to(REPO_PATH).as_posix()] = (
+                self._package_issues[file.relative_to(const.REPO_PATH).as_posix()] = (
                     file_issues
                 )
 
@@ -311,50 +214,3 @@ class ValidationConfig(Config):
             dict[str, list[Exception]]: A list of all issues found in the domain
         """
         return self._package_issues
-
-
-@dataclass
-class DocumentationConfig(Config):
-    """Dataclass for a domain's documentation configuration."""
-
-    CONFIGURATION_TYPE: ClassVar[Literal[ConfigurationType.DOCUMENTATION]] = (
-        ConfigurationType.DOCUMENTATION
-    )
-
-    package_name: str
-
-    description: str | None = field(default=None)
-    name: str = field(default="name")
-    id: str = field(default="id")
-
-    extra: list[str] = field(default_factory=list)
-
-    @property
-    def validated_fields(self) -> list[str]:
-        """Return a list of all fields that should be validated."""
-        validator = ValidationConfig.get_for_package(self.package_name)
-
-        fields = (
-            set(validator.should_exist)
-            | set(validator.should_match_filename)
-            | set(validator.should_be_hardcoded.keys())
-            | {smfpi["field"] for smfpi in validator.should_match_filepath}
-        )
-
-        for pair in validator.should_be_equal:
-            fields.update(pair)
-
-        return sorted(fields)
-
-    def __iter__(self) -> Generator[str, None, None]:
-        """Iterate over all fields that should be documented."""
-        yield from self.validated_fields
-        yield from self.extra
-
-
-@lru_cache
-def _load_user_pch_configuration() -> dict[str, dict[ConfigurationType, JSONObj]]:
-    return loads(PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
-
-
-__all__ = ["Config", "ParserConfig", "ValidationConfig", "DocumentationConfig"]

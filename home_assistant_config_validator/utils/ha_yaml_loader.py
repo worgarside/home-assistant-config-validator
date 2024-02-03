@@ -5,7 +5,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from dataclasses import dataclass, field
-from functools import lru_cache
 from logging import getLogger
 from pathlib import Path, PurePath
 from typing import Any, ClassVar, Generic, Literal, Self, TypeVar, cast, get_origin
@@ -19,8 +18,9 @@ from wg_utilities.functions.json import (
 from wg_utilities.loggers import add_stream_handler
 from yaml import SafeLoader, ScalarNode, load
 
-from home_assistant_config_validator.const import NULL_PATH, REPO_PATH
-from home_assistant_config_validator.exception import FileContentTypeError
+from . import const
+from .exception import FileContentTypeError
+from .helpers import subclasses_recursive
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("INFO")
@@ -41,7 +41,7 @@ class Tag(ABC, Generic[ResTo]):
     RESOLVES_TO: ClassVar[type]
     TAG: ClassVar[str]
 
-    file: Path = field(default=NULL_PATH)
+    file: Path = field(default=const.NULL_PATH)
 
     @classmethod
     def construct(
@@ -90,7 +90,7 @@ class Include(Tag[JSONObj | list[JSONObj]]):
 
     def resolve(
         self,
-        source_file: Path = NULL_PATH,
+        source_file: Path = const.NULL_PATH,
         *,
         resolve_tags: bool,
     ) -> JSONObj | list[JSONObj]:
@@ -103,7 +103,7 @@ class Include(Tag[JSONObj | list[JSONObj]]):
         Returns:
             JSONObj | JSONArr: The data from the path.
         """
-        if source_file == NULL_PATH:
+        if source_file == const.NULL_PATH:
             source_file = self.file
         elif not source_file.is_file():
             raise FileNotFoundError(source_file)
@@ -124,7 +124,7 @@ class Secret(Tag[str]):
     secret_id: str
     file: Path = field(init=False)
 
-    FAKE_SECRETS_PATH: ClassVar[Path] = REPO_PATH / "secrets.fake.yaml"
+    FAKE_SECRETS_PATH: ClassVar[Path] = const.REPO_PATH / "secrets.fake.yaml"
     TAG: ClassVar[Literal["!secret"]] = "!secret"
 
     def resolve(self, *_: Any, **__: Any) -> str:
@@ -187,7 +187,11 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
             list_index: int | None = None,
         ) -> Tag[ResToPath]:
             _ = dict_key, list_index
-            if not hasattr(value, "file") or not value.file or value.file == NULL_PATH:
+            if (
+                not hasattr(value, "file")
+                or not value.file
+                or value.file == const.NULL_PATH
+            ):
                 value.file = file
 
             return value
@@ -215,11 +219,11 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
 
     def resolve(
         self,
-        source_file: Path = NULL_PATH,
+        source_file: Path = const.NULL_PATH,
         *,
         resolve_tags: bool,
     ) -> ResToPath:
-        if source_file == NULL_PATH:
+        if source_file == const.NULL_PATH:
             source_file = self.file
         elif not source_file.is_file():
             raise FileNotFoundError(source_file)
@@ -433,25 +437,6 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         file_content["__file__"] = file.resolve()
 
         yield file_content
-
-
-@lru_cache
-def subclasses_recursive(
-    cls: type[Tag[Any]],
-) -> tuple[type[Tag[Any]], ...]:
-    """Get all subclasses of a class recursively.
-
-    Args:
-        cls (type[_CustomTag]): The class to get the subclasses of.
-
-    Returns:
-        list[type[_CustomTag]]: A list of all subclasses of the class.
-    """
-    indirect: list[type[Tag[Any]]] = []
-    for subclass in (direct := cls.__subclasses__()):
-        indirect.extend(subclasses_recursive(subclass))
-
-    return tuple(direct + indirect)
 
 
 def load_yaml(
