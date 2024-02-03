@@ -10,26 +10,18 @@ from io import TextIOWrapper
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, Final, Literal, Self, cast
+from typing import Any, ClassVar, Final, Literal, Self
 
 from wg_utilities.functions.json import JSONObj, process_json_object
 from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.config import DocumentationConfig, ParserConfig
-from home_assistant_config_validator.const import (
-    ENTITIES_DIR,
-    HA_CONFIG,
-    PACKAGES_DIR,
-    REPO_PATH,
-)
-from home_assistant_config_validator.exception import (
+from home_assistant_config_validator.utils import (
     PackageDefinitionError,
     PackageNotFoundError,
-)
-from home_assistant_config_validator.ha_yaml_loader import (
-    IncludeDirNamed,
     Secret,
     TagWithPath,
+    const,
     load_yaml,
 )
 
@@ -49,18 +41,25 @@ class Package:
 
     INSTANCES: ClassVar[dict[str, Self]] = {}
 
+    pkg_name: str
     name: str
     entities: list[JSONObj] = field(default_factory=list)
 
     def __post_init__(self: Self) -> None:
         """Add the instance to the instances dict."""
-        if (instance := self.INSTANCES.get(self.name)) is None:
-            self.INSTANCES[self.name] = self
+        if (instance := self.INSTANCES.get(self.pkg_name)) is None:
+            self.INSTANCES[self.pkg_name] = self
         elif instance != self:
             raise PackageDefinitionError(
-                PACKAGES_DIR.joinpath(self.name),
-                "Can't have multiple packages with same name",
+                const.PACKAGES_DIR.joinpath(self.pkg_name),
+                f"Can't have multiple packages with same name ({self.pkg_name})",
             )
+
+    @classmethod
+    def get_packages(cls) -> Generator[Package, None, None]:
+        """Generate all packages."""
+        for pkg_file in sorted(const.PACKAGES_DIR.glob("*.yaml")):
+            yield cls.by_name(pkg_file.stem)
 
     @classmethod
     def by_name(cls, name: str, /, *, allow_creation: bool = True) -> Package:
@@ -70,11 +69,13 @@ class Package:
 
         if (
             allow_creation
-            and PACKAGES_DIR.joinpath(name).with_suffix(".yaml").is_file()
+            and const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml").is_file()
         ):
-            return cls.parse_file(PACKAGES_DIR.joinpath(name).with_suffix(".yaml"))
+            return cls.parse_file(
+                const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml"),
+            )
 
-        raise PackageNotFoundError(PACKAGES_DIR.joinpath(name))
+        raise PackageNotFoundError(const.PACKAGES_DIR.joinpath(name))
 
     @classmethod
     def parse_file(cls, file: Path) -> Package:
@@ -94,7 +95,7 @@ class Package:
 
             LOGGER.warning(
                 "Found package in file %s with split keys, combined into: %r",
-                file.relative_to(REPO_PATH),
+                file.relative_to(const.REPO_PATH),
                 name,
             )
         else:
@@ -117,8 +118,8 @@ class Package:
             log_op_func_failures=False,
         )
 
-        if (pkg := cls.INSTANCES.get(name)) is None:
-            return cls(name=name, entities=entities)
+        if (pkg := cls.INSTANCES.get(file.stem)) is None:
+            return cls(pkg_name=file.stem, name=name, entities=entities)
 
         pkg.entities.extend(entities)
 
@@ -257,8 +258,8 @@ class ReadmeEntity:
         if path := self.entity.get("__file__"):
             path = Path(str(path))
             return self.markdown_format(
-                path.relative_to(ENTITIES_DIR),
-                target_url=str(path.relative_to(REPO_PATH)),
+                path.relative_to(const.ENTITIES_DIR),
+                target_url=str(path.relative_to(const.REPO_PATH)),
                 code=True,
             )
 
@@ -289,7 +290,7 @@ class ReadmeEntity:
 class Readme:
     """A context manager for writing the README."""
 
-    PATH: Final[Path] = PACKAGES_DIR.joinpath("README.md")
+    PATH: Final[Path] = const.PACKAGES_DIR.joinpath("README.md")
 
     HEADING_PATTERN: Final[re.Pattern[str]] = re.compile(r"^#+\s")
     LIST_ITEM_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\s*-\s")
@@ -368,21 +369,11 @@ class Readme:
 
 def main() -> None:
     """Generate the README for the packages."""
-    configuration_yaml = load_yaml(
-        HA_CONFIG,
-        resolve_tags=False,
-        validate_content_type=JSONObj,
-    )
-
-    packages_tag = cast(
-        IncludeDirNamed,
-        configuration_yaml["homeassistant"]["packages"],  # type: ignore[call-overload,index]
-    )
-
     with Readme() as readme:
         readme.write_line("# Packages")
-        for pkg_file in sorted(packages_tag.absolute_path.glob("*.yaml")):
-            readme.write_lines(Package.parse_file(pkg_file).readme_lines)
+
+        for pkg in Package.get_packages():
+            readme.write_lines(pkg.readme_lines)
 
 
 if __name__ == "__main__":

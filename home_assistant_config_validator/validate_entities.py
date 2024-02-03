@@ -5,14 +5,14 @@ from __future__ import annotations
 import sys
 
 from home_assistant_config_validator.config import ValidationConfig
-from home_assistant_config_validator.const import ENTITIES_DIR, format_output
+from home_assistant_config_validator.utils import const, format_output
 
 
 def main() -> None:
     """Validate all entities."""
     all_issues: dict[str, dict[str, list[Exception]]] = {}
 
-    for domain_dir in sorted(ENTITIES_DIR.iterdir()):
+    for domain_dir in sorted(const.ENTITIES_DIR.iterdir()):
         if not domain_dir.is_dir():
             continue
 
