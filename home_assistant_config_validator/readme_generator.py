@@ -320,18 +320,17 @@ class Readme:
 
     def write_line(self, line: str) -> None:
         """Write a line to the file."""
-        if (
-            line != NEWLINE
-            and self.previous_line is not None
-            and (
+        if line != NEWLINE:
+            line = line.strip()
+
+            if self.previous_line is not None and (
                 # Lists should be surrounded by newlines
                 (self.is_list_item(line) != self.is_list_item(self.previous_line))
                 # As should headings and HTML
                 or self.is_heading(self.previous_line)
                 or self.is_html(self.previous_line)
-            )
-        ):
-            self.write_line(NEWLINE)
+            ):
+                self.write_line(NEWLINE)
 
         self._fout.write(line)
         if line != NEWLINE:
