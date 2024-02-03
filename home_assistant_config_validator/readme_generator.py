@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, lru_cache
+from io import TextIOWrapper
 from logging import getLogger
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from types import TracebackType
+from typing import Any, ClassVar, Final, Literal, Self, cast
 
 from wg_utilities.functions.json import JSONObj, process_json_object
 from wg_utilities.loggers import add_stream_handler
@@ -17,19 +19,16 @@ from home_assistant_config_validator.config import DocumentationConfig, ParserCo
 from home_assistant_config_validator.const import (
     ENTITIES_DIR,
     HA_CONFIG,
-    NULL_PATH,
     PACKAGES_DIR,
     REPO_PATH,
 )
 from home_assistant_config_validator.exception import (
-    EntityDefinitionError,
     PackageDefinitionError,
     PackageNotFoundError,
 )
 from home_assistant_config_validator.ha_yaml_loader import (
     IncludeDirNamed,
     Secret,
-    Tag,
     TagWithPath,
     load_yaml,
 )
@@ -37,6 +36,8 @@ from home_assistant_config_validator.ha_yaml_loader import (
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
+
+NEWLINE: Final[Literal["\n"]] = "\n"
 
 
 @dataclass
@@ -133,41 +134,26 @@ class Package:
         """Get the user's parser config for the package."""
         return ParserConfig.get_for_package(self.name)
 
-    @property
-    def all_entities(self) -> Generator[JSONObj, None, None]:
-        """Combine all entities from all files and return a single list."""
-        for v in self.entities:
-            if isinstance(v, list):
-                yield from v
-            elif isinstance(v, Tag) and v.RESOLVES_TO is list:
-                yield from v.resolve(v.file, resolve_tags=True)
-            elif isinstance(v, dict):
-                yield v
-            elif v is not None:
-                raise EntityDefinitionError(NULL_PATH, str(v))
-
     @cached_property
     def readme_entities(self) -> Generator[ReadmeEntity, None, None]:
         """Generate a list of ReadmeEntity instances."""
-        yield from (ReadmeEntity(self, self.parser.parse(e)) for e in self.all_entities)
+        yield from (ReadmeEntity(self, self.parser.parse(e)) for e in self.entities)
 
     @property
-    def readme_section(self) -> str:
+    def readme_lines(self) -> Generator[str, None, None]:
         """Generate the section for the package in the README."""
-        title = f"## {self.name.replace('_', ' ').title()}"
+        yield f"## {self.name.replace('_', ' ').title()}"
 
-        if not (readme_entities := list(self.readme_entities)):
-            return f"\n{title}\n\n### [No Entities]"
+        if not self.entities:
+            yield "### [No Entities]"
+            return
 
-        readme = (
-            title
-            + f"\n\n<details><summary><h3>Entities ({len(readme_entities)})</h3></summary>"
-        )
+        yield f"<details><summary><h3>Entities ({len(self.entities)})</h3></summary>"
 
-        for entity in readme_entities:
-            readme += f"\n\n{entity.markdown}"
+        for entity in self.readme_entities:
+            yield from entity.markdown_lines
 
-        return readme + "\n</details>"
+        yield "</details>"
 
 
 @dataclass
@@ -180,7 +166,7 @@ class ReadmeEntity:
 
     @staticmethod
     def markdown_format(
-        __value: str,
+        __value: Any,
         /,
         *,
         target_url: str | None = None,
@@ -188,7 +174,11 @@ class ReadmeEntity:
         block_quote: bool = False,
     ) -> str:
         """Format a string for markdown."""
-        __value = __value.strip(" `")
+        __value = (
+            str(__value).lower()
+            if isinstance(__value, bool)
+            else str(__value).strip(" `")
+        )
 
         if code or re.fullmatch(r"^[a-z_]+\.?[a-z_]+$", __value):
             __value = f"`{__value or ' '}`"
@@ -199,7 +189,7 @@ class ReadmeEntity:
         if block_quote:
             __value = f"> {__value}"
 
-        return __value
+        return str(__value)
 
     @property
     def entity_id(self) -> str:
@@ -212,25 +202,22 @@ class ReadmeEntity:
         return f"{self.package.name}.{e_id}"
 
     @property
-    def description(self) -> str:
+    def description(self) -> Generator[str, None, None]:
         """Generate the description for the entity."""
         if self.package.docs.description is None:
-            return ""
+            return
 
-        return "\n".join(
-            self.markdown_format(line, block_quote=True)
-            for line in str(
-                self.entity.get(
-                    self.package.docs.description,
-                    "*No description provided*",
-                ),
-            ).splitlines()
-        )
+        for line in str(
+            self.entity.get(
+                self.package.docs.description,
+                "*No description provided*",
+            ),
+        ).splitlines():
+            yield self.markdown_format(line, block_quote=True)
 
     @property
     def fields(self) -> Generator[str, None, None]:
         """Generate the fields for the entity."""
-        yield ""
         yield f"- File: {self.file}"
 
         for f in self.package.docs:
@@ -246,22 +233,23 @@ class ReadmeEntity:
                 continue
 
             if isinstance(val, Secret):
-                val = val.resolve(resolve_tags=True)
+                val = val.resolve()
 
             if key.casefold() == "icon":
                 url = f"https://pictogrammers.com/library/mdi/icon/{str(val).removeprefix('mdi:')}/"
                 val = self.markdown_format(
-                    str(val),
+                    val,
                     target_url=url,
                     code=True,
                 )
-            elif key.endswith("ID") or key.casefold() == "command":
-                val = self.markdown_format(str(val), code=True)
+            elif (
+                key.endswith("ID")
+                or key.casefold() == "command"
+                or isinstance(val, bool)
+            ):
+                val = self.markdown_format(val, code=True)
 
             yield f"- {key}: {val!s}"
-
-        yield ""
-        yield ""
 
     @property
     def file(self) -> str:
@@ -269,7 +257,7 @@ class ReadmeEntity:
         if path := self.entity.get("__file__"):
             path = Path(str(path))
             return self.markdown_format(
-                str(path.relative_to(ENTITIES_DIR)),
+                path.relative_to(ENTITIES_DIR),
                 target_url=str(path.relative_to(REPO_PATH)),
                 code=True,
             )
@@ -283,23 +271,100 @@ class ReadmeEntity:
 
         html_tag = "code" if set(header) & {"_", "/"} else "strong"
 
-        return f"<details><summary><{html_tag}>{header}</{html_tag}></summary>\n"
+        return f"<details><summary><{html_tag}>{header}</{html_tag}></summary>"
 
     @property
-    def markdown(self) -> str:
+    def markdown_lines(self) -> Generator[str, None, None]:
         """Generate the markdown for the entity."""
-        lines = [self.header]
+        yield self.header
 
         if f">{self.entity_id}<" not in self.header:
-            lines.append(
-                f"  ##### Entity ID: {self.markdown_format(self.entity_id, code=True)}\n",
+            yield f"**Entity ID: {self.markdown_format(self.entity_id, code=True)}**"
+
+        yield from self.description
+        yield from self.fields
+        yield "</details>"
+
+
+class Readme:
+    """A context manager for writing the README."""
+
+    PATH: Final[Path] = PACKAGES_DIR.joinpath("README.md")
+
+    HEADING_PATTERN: Final[re.Pattern[str]] = re.compile(r"^#+\s")
+    LIST_ITEM_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\s*-\s")
+
+    _fout: TextIOWrapper
+
+    def __init__(self) -> None:
+        """Initialize the previous line attribute."""
+        self.previous_line: str | None = None
+
+    @classmethod
+    @lru_cache(maxsize=12)
+    def is_heading(cls, line: str | None) -> bool:
+        """Check if a line is a heading."""
+        return bool(line and cls.HEADING_PATTERN.match(line))
+
+    @classmethod
+    @lru_cache(maxsize=12)
+    def is_html(cls, line: str | None) -> bool:
+        """Check if a line is (wrapped in) an HTML tag."""
+        return bool(line and line.startswith("<") and line.endswith(">"))
+
+    @classmethod
+    @lru_cache(maxsize=12)
+    def is_list_item(cls, line: str | None) -> bool:
+        """Check if a line is a list item."""
+        return bool(line and cls.LIST_ITEM_PATTERN.match(line))
+
+    def write_line(self, line: str) -> None:
+        """Write a line to the file."""
+        if (
+            line != NEWLINE
+            and self.previous_line is not None
+            and (
+                # Lists should be surrounded by newlines
+                (self.is_list_item(line) != self.is_list_item(self.previous_line))
+                # As should headings and HTML
+                or self.is_heading(self.previous_line)
+                or self.is_html(self.previous_line)
             )
+        ):
+            self.write_line(NEWLINE)
 
-        lines.append(self.description)
-        lines.extend(self.fields)
-        lines.append("</details>")
+        self._fout.write(line)
+        if line != NEWLINE:
+            self._fout.write(NEWLINE)
 
-        return "\n".join(lines)
+        self.previous_line = line
+
+    def write_lines(self, lines: Iterable[str]) -> None:
+        """Write multiple lines to the file."""
+        for line in lines:
+            self.write_line(line)
+
+    def __enter__(self) -> Readme:
+        """Open the file for writing."""
+        self._fout = self.PATH.open("w", encoding="utf-8")
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the file."""
+        self._fout.close()
+
+        if exc_type is not None:
+            LOGGER.error(
+                "Error occurred while writing README",
+                exc_info=(exc_type, exc_value, traceback),  # type: ignore[arg-type]
+            )
+        else:
+            LOGGER.info("README generated at %s", self.PATH)
 
 
 def main() -> None:
@@ -315,16 +380,10 @@ def main() -> None:
         configuration_yaml["homeassistant"]["packages"],  # type: ignore[call-overload,index]
     )
 
-    readme = "# Packages"
-
-    for pkg_file in sorted(packages_tag.absolute_path.glob("*.yaml")):
-        readme += f"\n\n{Package.by_name(pkg_file.stem).readme_section}"
-
-    readme = readme.rstrip() + "\n"
-
-    PACKAGES_DIR.joinpath("README.md").write_text(readme)
-
-    LOGGER.info("README.md generated in %s", PACKAGES_DIR)
+    with Readme() as readme:
+        readme.write_line("# Packages")
+        for pkg_file in sorted(packages_tag.absolute_path.glob("*.yaml")):
+            readme.write_lines(Package.parse_file(pkg_file).readme_lines)
 
 
 if __name__ == "__main__":
