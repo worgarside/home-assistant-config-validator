@@ -22,7 +22,7 @@ parser.add_argument(
     type=Path,
     required=False,
     help="Path to custom validations configuration file.",
-    default=REPO_PATH / "config_validator.json",
+    default=REPO_PATH / "config_validator.yml",
 )
 
 parser.add_argument(
@@ -30,7 +30,7 @@ parser.add_argument(
     "--validate-all",
     action="store_true",
     help="Validate all packages (requires exactly one configuration per package).",
-    default=False,
+    default=getenv("VALIDATE_ALL_PACKAGES", "0") == "1",
 )
 
 parser.add_argument(
@@ -49,10 +49,10 @@ PCH_CONFIG: Path = args.pch_config_path
 VALIDATE_ALL_PACKAGES: bool = args.validate_all
 HA_CONFIG: Path = args.ha_config_path
 
-ENTITIES_DIR = REPO_PATH / "entities"
-PACKAGES_DIR = REPO_PATH / "integrations"
-LOVELACE_DIR = REPO_PATH / "lovelace"
-LOVELACE_ROOT_FILE = REPO_PATH / "ui-lovelace.yaml"
+ENTITIES_DIR: Final[Path] = REPO_PATH / "entities"
+PACKAGES_DIR: Final[Path] = REPO_PATH / "integrations"
+LOVELACE_DIR: Final[Path] = REPO_PATH / "lovelace"
+LOVELACE_ROOT_FILE: Final[Path] = REPO_PATH / "ui-lovelace.yaml"
 
 NULL_PATH: Final[Path] = Path("/dev/null")
 

@@ -7,6 +7,7 @@ from collections.abc import Hashable, Iterable
 from functools import lru_cache
 from typing import Any, TypedDict
 
+from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
     JSONArr,
@@ -39,17 +40,17 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
     from home_assistant_config_validator.utils.ha_yaml_loader import load_yaml
 
     known_entities: dict[str, KnownEntityType] = {
-        domain: {
+        package: {
             "names": [
-                f"{domain}.{entity_file.stem}"
-                for entity_file in (const.ENTITIES_DIR / domain).rglob("*.yaml")
+                f"{package}.{entity_file.stem}"
+                for entity_file in (const.ENTITIES_DIR / package).rglob("*.yaml")
             ],
             "name_pattern": re.compile(
-                rf"^{domain}\.[a-z0-9_-]+$",
+                rf"^{package}\.[a-z0-9_-]+$",
                 flags=re.IGNORECASE,
             ),
         }
-        for domain in (
+        for package in (
             "input_boolean",
             "input_button",
             "input_datetime",
@@ -85,8 +86,8 @@ def check_known_entity_usages(
 ) -> list[Exception]:
     """Check that all entities used in the config YAML are defined elsewhere.
 
-    This only applies to the domains which are solely defined in YAML files; any
-    domains which have entities that can be defined through the
+    This only applies to the packages which are solely defined in YAML files; any
+    packages which have entities that can be defined through the
 
     Args:
         entity_yaml (JSONObj | JSONArr): The entity's YAML
@@ -114,12 +115,12 @@ def check_known_entity_usages(
         if not dict_key or dict_key not in entity_keys:
             return value
 
-        for domain, entity_comparands in _get_known_entities().items():
+        for package, entity_comparands in _get_known_entities().items():
             if (not entity_comparands["name_pattern"].fullmatch(value)) or (
                 dict_key == "service"
                 and (
-                    domain not in ("script", "shell_command")
-                    or value.split(".")[1] in KNOWN_SERVICES.get(domain, ())
+                    package not in ("script", "shell_command")
+                    or value.split(".")[1] in KNOWN_SERVICES.get(package, ())
                 )
             ):
                 continue
@@ -129,7 +130,7 @@ def check_known_entity_usages(
                     ValueError(
                         " ".join(
                             (
-                                domain.replace("_", " ").title(),
+                                package.replace("_", " ").title(),
                                 dict_key.replace("_", " ").title(),
                                 value,
                                 "is not defined",
@@ -190,6 +191,12 @@ def format_output(
 
 
 @lru_cache
+def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
+    """Parse a JSONPath expression."""
+    return parse(__jsonpath)
+
+
+@lru_cache
 def subclasses_recursive(
     cls: type[Hashable],
 ) -> tuple[type[Any], ...]:
@@ -211,6 +218,7 @@ def subclasses_recursive(
 __all__ = [
     "check_known_entity_usages",
     "format_output",
+    "parse_jsonpath",
     "subclasses_recursive",
     "KnownEntityType",
 ]
