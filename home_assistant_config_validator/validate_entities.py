@@ -4,24 +4,28 @@ from __future__ import annotations
 
 import sys
 
-from home_assistant_config_validator.config import ValidationConfig
-from home_assistant_config_validator.utils import const, format_output
+from home_assistant_config_validator.models import Package
+from home_assistant_config_validator.models.config import ValidationConfig
+from home_assistant_config_validator.utils import format_output
 
 
 def main() -> None:
     """Validate all entities."""
     all_issues: dict[str, dict[str, list[Exception]]] = {}
 
-    for domain_dir in sorted(const.ENTITIES_DIR.iterdir()):
-        if not domain_dir.is_dir():
+    for pkg in Package.get_packages():
+        if not pkg.entities:
             continue
 
-        v_config = ValidationConfig.get_for_package(domain_dir.name)
+        if pkg.pkg_name != "template_triggered":
+            continue
 
-        v_config.validate_domain()
+        validator = ValidationConfig.get_for_package(pkg)
 
-        if v_config.package_issues:
-            all_issues[domain_dir.name] = v_config.package_issues
+        validator.validate_package()
+
+        if validator.package_issues:
+            all_issues[pkg.pkg_name] = validator.package_issues
 
     if not all_issues:
         sys.exit(0)

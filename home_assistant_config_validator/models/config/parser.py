@@ -7,6 +7,7 @@ from typing import ClassVar, Literal
 
 from wg_utilities.functions.json import JSONObj
 
+from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import const
 
 from .base import Config
@@ -14,13 +15,13 @@ from .base import Config
 
 @dataclass
 class ParserConfig(Config):
-    """Dataclass for a domain's parser configuration."""
+    """Dataclass for a package's parser configuration."""
 
     CONFIGURATION_TYPE: ClassVar[Literal[const.ConfigurationType.PARSER]] = (
         const.ConfigurationType.PARSER
     )
 
-    package_name: str
+    package: Package
 
     top_level_keys: list[str] = field(default_factory=list)
 

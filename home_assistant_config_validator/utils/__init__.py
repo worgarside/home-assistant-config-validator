@@ -16,6 +16,7 @@ from .helpers import (
     KnownEntityType,
     check_known_entity_usages,
     format_output,
+    parse_jsonpath,
     subclasses_recursive,
 )
 
@@ -37,4 +38,5 @@ __all__ = [
     "TagWithPath",
     "Tag",
     "subclasses_recursive",
+    "parse_jsonpath",
 ]

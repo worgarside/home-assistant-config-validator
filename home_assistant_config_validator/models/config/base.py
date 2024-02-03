@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC
+from collections import defaultdict
+from dataclasses import dataclass
 from functools import lru_cache
 from json import loads
 from logging import getLogger
@@ -11,7 +13,9 @@ from typing import ClassVar, Self
 
 from wg_utilities.functions.json import JSONObj
 from wg_utilities.loggers import add_stream_handler
+from yaml import safe_load
 
+from home_assistant_config_validator.models.package import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, const
 
 LOGGER = getLogger(__name__)
@@ -40,40 +44,62 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
     )
 
 
+@dataclass
 class Config(ABC):
     """Base class for configuration classes."""
 
     CONFIGURATION_TYPE: ClassVar[const.ConfigurationType]
-    package_name: str
+    package: Package
+
+    INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = (
+        defaultdict(dict)
+    )
 
     @classmethod
-    def get_for_package(cls, package_name: str, /) -> Self:
-        """Get the user's configuration for a given domain."""
+    def get_for_package(cls, package: Package, /) -> Self:
+        """Get the user's configuration for a given package."""
+        if (pkg := cls.INSTANCES[cls.CONFIGURATION_TYPE].get(package)) is not None:
+            return pkg  # type: ignore[return-value]
+
         package_config = (
             _load_user_pch_configuration()
-            .get(package_name, {})
-            .get(cls.CONFIGURATION_TYPE, {})
+            .get(package.pkg_name, {})
+            .get(cls.CONFIGURATION_TYPE)
         )
 
-        if not isinstance(package_config, dict):
+        if package_config is not None and not isinstance(package_config, dict):
             raise TypeError(type(package_config))
 
         if (
-            cls.__name__ == "ValidationConfig"
+            cls.CONFIGURATION_TYPE == const.ConfigurationType.VALIDATION
             and const.VALIDATE_ALL_PACKAGES
-            and not package_config
+            and package_config is None
         ):
             raise UserPCHConfigurationError(
                 cls.CONFIGURATION_TYPE,
-                package_name,
+                package.pkg_name,
                 "not found",
             )
 
-        package_config["package_name"] = package_name
-
-        return cls(**package_config)
+        return cls(package=package, **(package_config or {}))
 
 
 @lru_cache
 def _load_user_pch_configuration() -> dict[str, dict[const.ConfigurationType, JSONObj]]:
-    return loads(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+    if not const.PCH_CONFIG.exists():
+        LOGGER.warning(
+            "No user PCH configuration found at %s",
+            const.PCH_CONFIG,
+        )
+        return {}
+
+    if not const.PCH_CONFIG.is_file():
+        raise FileNotFoundError(const.PCH_CONFIG)
+
+    if const.PCH_CONFIG.suffix == ".json":
+        return loads(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+
+    if const.PCH_CONFIG.suffix in (".yaml", ".yml"):
+        return safe_load(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+
+    raise ValueError(const.PCH_CONFIG.suffix)

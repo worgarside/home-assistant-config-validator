@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from home_assistant_config_validator.utils.const import ConfigurationType
+from home_assistant_config_validator.utils import const
 
 
 class ConfigurationError(Exception):
@@ -17,7 +17,7 @@ class UserPCHConfigurationError(ConfigurationError):
 
     def __init__(
         self,
-        configuration_type: ConfigurationType,
+        configuration_type: const.ConfigurationType,
         package: str,
         message: str,
     ) -> None:
