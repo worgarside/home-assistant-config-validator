@@ -16,6 +16,11 @@ from wg_utilities.functions.json import (
 )
 
 from . import const
+from .exception import (
+    InvalidConfigurationError,
+    InvalidFieldTypeError,
+    JsonPathNotFoundError,
+)
 
 
 class KnownEntityType(TypedDict):
@@ -83,7 +88,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
 def check_known_entity_usages(
     entity_yaml: JSONObj | JSONArr,
     entity_keys: Iterable[str] = ("entity_id",),
-) -> list[Exception]:
+) -> list[InvalidConfigurationError]:
     """Check that all entities used in the config YAML are defined elsewhere.
 
     This only applies to the packages which are solely defined in YAML files; any
@@ -100,7 +105,7 @@ def check_known_entity_usages(
     if "service" not in entity_keys:
         entity_keys = (*entity_keys, "service")
 
-    known_entity_issues: list[Exception] = []
+    known_entity_issues: list[InvalidConfigurationError] = []
 
     def _callback(
         value: str,
@@ -127,7 +132,7 @@ def check_known_entity_usages(
 
             if value not in entity_comparands["names"]:
                 known_entity_issues.append(
-                    ValueError(
+                    InvalidConfigurationError(
                         " ".join(
                             (
                                 package.replace("_", " ").title(),
@@ -149,16 +154,18 @@ def check_known_entity_usages(
             pass_on_fail=False,
         )
     except InvalidJsonObjectError as exc:
-        known_entity_issues.append(exc)
+        known_entity_issues.append(
+            InvalidFieldTypeError("<root>", exc.args[0], (dict, list)),
+        )
 
     return known_entity_issues
 
 
 def format_output(
     data: (
-        dict[str, dict[str, list[Exception]]]
-        | dict[str, list[Exception]]
-        | list[Exception]
+        dict[str, dict[str, list[InvalidConfigurationError]]]
+        | dict[str, list[InvalidConfigurationError]]
+        | list[InvalidConfigurationError]
     ),
     _indent: int = 0,
 ) -> str:
@@ -183,11 +190,51 @@ def format_output(
             output += f"{' ' * _indent}{key}\n{format_output(value, _indent + 2)}"
     elif isinstance(data, list):
         for exc in data:
-            output += f"{'  ' * _indent}{type(exc).__name__}: {exc!s}\n"
+            output += f"{'  ' * _indent}{type(exc).__name__}: {exc.fmt_msg}\n"
     else:
         raise TypeError(f"Unexpected type {type(data).__name__}")  # noqa: TRY003
 
     return output
+
+
+NO_DEFAULT = object()
+
+
+def get_json_value(
+    json_obj: JSONObj | JSONArr,
+    json_path: str,
+    /,
+    default: Any = NO_DEFAULT,
+    valid_type: type[Any] = object,
+) -> Any:
+    """Get a value from a JSON object using a JSONPath expression.
+
+    Args:
+        json_obj (JSONObj | JSONArr): The JSON object to search
+        json_path (str): The JSONPath expression
+        default (Any, optional): The default value to return if the path is not found.
+            Defaults to None.
+        valid_type (type[Any], optional): The type of the value to return. Defaults to
+            object.
+
+    Returns:
+        Any: The value at the JSONPath expression
+    """
+    values = [match.value for match in parse_jsonpath(json_path).find(json_obj)]
+
+    if not values and default is not NO_DEFAULT:
+        return default
+
+    if not values:
+        raise JsonPathNotFoundError(json_path)
+
+    if not all(isinstance(value, valid_type) for value in values):
+        raise InvalidFieldTypeError(json_path, values, valid_type)
+
+    if len(values) == 1:
+        return values[0]
+
+    return values
 
 
 @lru_cache

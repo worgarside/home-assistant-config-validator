@@ -8,11 +8,17 @@ from typing import ClassVar, Literal, TypedDict, cast
 
 from wg_utilities.functions.json import JSONObj, JSONVal
 
-from home_assistant_config_validator.models.package import Package
+from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
+    InvalidConfigurationError,
+    JsonPathNotFoundError,
+    ShouldBeEqualError,
+    ShouldBeHardcodedError,
+    ShouldMatchFileNameError,
+    ShouldMatchFilePathError,
     check_known_entity_usages,
     const,
-    parse_jsonpath,
+    get_json_value,
 )
 
 from .base import Config, replace_non_alphanumeric
@@ -40,47 +46,55 @@ class ValidationConfig(Config):
 
     package: Package
 
+    should_be_equal: list[tuple[str, ...]] = field(default_factory=list)
+    should_be_hardcoded: dict[str, JSONVal] = field(default_factory=dict)
+    should_exist: list[str] = field(default_factory=list)
     should_match_filename: list[str] = field(default_factory=list)
     should_match_filepath: list[ShouldMatchFilepathItem] = field(
         default_factory=list,
     )
-    should_be_equal: list[tuple[str, ...]] = field(default_factory=list)
-    should_exist: list[str] = field(default_factory=list)
-    should_be_hardcoded: dict[str, JSONVal] = field(default_factory=dict)
 
-    _package_issues: dict[str, list[Exception]] = field(default_factory=dict)
+    _package_issues: dict[str, list[InvalidConfigurationError]] = field(
+        default_factory=dict,
+    )
 
     def _validate_should_be_equal(
         self,
         entity_yaml: JSONObj,
         /,
         *,
-        issues: list[Exception],
+        issues: list[InvalidConfigurationError],
     ) -> None:
         for field_name_1, field_name_2 in self.should_be_equal:
-            if (field_value_1 := entity_yaml.get(field_name_1)) != (
-                field_value_2 := entity_yaml.get(field_name_2)
-            ):
-                issues.append(
-                    ValueError(
-                        f"`{field_name_1}: {field_value_1!s}` should match"
-                        f" `{field_name_2}: {field_value_2!s}`",
-                    ),
-                )
+            try:
+                if (field_value_1 := get_json_value(entity_yaml, field_name_1)) != (
+                    field_value_2 := get_json_value(entity_yaml, field_name_2)
+                ):
+                    issues.append(
+                        ShouldBeEqualError(
+                            f1=field_name_1,
+                            v1=field_value_1,
+                            f2=field_name_2,
+                            v2=field_value_2,
+                        ),
+                    )
+            except JsonPathNotFoundError as exc:
+                issues.append(exc)
 
     def _validate_should_be_hardcoded(
         self,
         entity_yaml: JSONObj,
         /,
         *,
-        issues: list[Exception],
+        issues: list[InvalidConfigurationError],
     ) -> None:
         for sbh_field, hardcoded_value in self.should_be_hardcoded.items():
             if (field_value := entity_yaml.get(sbh_field)) != hardcoded_value:
                 issues.append(
-                    ValueError(
-                        f"`{sbh_field}: {field_value!s}` should be hardcoded as"
-                        f" {hardcoded_value!r}",
+                    ShouldBeHardcodedError(
+                        sbh_field,
+                        field_value,
+                        hardcoded_value,
                     ),
                 )
 
@@ -89,13 +103,13 @@ class ValidationConfig(Config):
         entity_yaml: JSONObj,
         /,
         *,
-        issues: list[Exception],
+        issues: list[InvalidConfigurationError],
     ) -> None:
         for se_field in self.should_exist:
-            if se_field not in entity_yaml and not parse_jsonpath(se_field).find(
-                entity_yaml,
-            ):
-                issues.append(ValueError(f"`{se_field}` should be defined"))
+            try:
+                get_json_value(entity_yaml, se_field)
+            except JsonPathNotFoundError as exc:
+                issues.append(exc)
 
     def _validate_should_match_filename(
         self,
@@ -103,7 +117,7 @@ class ValidationConfig(Config):
         /,
         *,
         file_path: Path,
-        issues: list[Exception],
+        issues: list[InvalidConfigurationError],
     ) -> None:
         """Validate that certain fields match the file name."""
         for smfn_field in self.should_match_filename:
@@ -118,10 +132,7 @@ class ValidationConfig(Config):
                 )
             ) != file_path.with_suffix("").name.lower():
                 issues.append(
-                    ValueError(
-                        f"`{smfn_field}: {field_value!s}` ({fmt_value=}) should match"
-                        " file name",
-                    ),
+                    ShouldMatchFileNameError(smfn_field, field_value, fmt_value),
                 )
 
     def _validate_should_match_filepath(
@@ -130,7 +141,7 @@ class ValidationConfig(Config):
         /,
         *,
         file_path: Path,
-        issues: list[Exception],
+        issues: list[InvalidConfigurationError],
     ) -> None:
         for smfp_config in self.should_match_filepath:
             remove_sensor_prefix = smfp_config.get("remove_sensor_prefix", False)
@@ -163,7 +174,7 @@ class ValidationConfig(Config):
             ).join(filepath_parts)
 
             actual_value = replace_non_alphanumeric(
-                str(entity_yaml.get(smfp_config["field"]) or ""),
+                get_json_value(entity_yaml, smfp_config["field"]),
                 ignore_chars=sep.replace(" ", ""),
             )
 
@@ -173,9 +184,10 @@ class ValidationConfig(Config):
 
             if expected_value != actual_value:
                 issues.append(
-                    ValueError(
-                        f"`{smfp_config['field']}: {(actual_value or 'null')!s}`"
-                        f" should match file path: `{expected_value!s}`",
+                    ShouldMatchFilePathError(
+                        smfp_config["field"],
+                        actual_value,
+                        expected_value,
                     ),
                 )
 
@@ -184,7 +196,7 @@ class ValidationConfig(Config):
         *,
         file_path: Path,
         entity_yaml: JSONObj,
-    ) -> list[Exception]:
+    ) -> list[InvalidConfigurationError]:
         # pylint: disable=too-many-locals,too-many-branches
         """Run all validations on the given entity.
 
@@ -195,7 +207,7 @@ class ValidationConfig(Config):
         Returns:
             list[Exception]: A list of exceptions raised during validation
         """
-        custom_issues: list[Exception] = []
+        custom_issues: list[InvalidConfigurationError] = []
 
         self._validate_should_be_equal(entity_yaml, issues=custom_issues)
         self._validate_should_exist(entity_yaml, issues=custom_issues)
@@ -230,7 +242,7 @@ class ValidationConfig(Config):
             entity_yaml = parser.parse(entity)
             entity_file = cast(Path, entity_yaml["__file__"])
 
-            file_issues: list[Exception] = self.run_custom_validations(
+            file_issues: list[InvalidConfigurationError] = self.run_custom_validations(
                 file_path=entity_file,
                 entity_yaml=entity_yaml,
             )
@@ -248,6 +260,6 @@ class ValidationConfig(Config):
                 ] = file_issues
 
     @property
-    def package_issues(self) -> dict[str, list[Exception]]:
+    def package_issues(self) -> dict[str, list[InvalidConfigurationError]]:
         """Return a list of all issues found in the package."""
         return self._package_issues

@@ -10,8 +10,11 @@ from typing import Any, TypedDict
 from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
 
 from home_assistant_config_validator.utils import (
+    DeclutteringTemplateNotFoundError,
+    InvalidConfigurationError,
     Secret,
     Tag,
+    UnusedFileError,
     check_known_entity_usages,
     const,
     format_output,
@@ -137,7 +140,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
 def validate_decluttering_templates(
     lovelace_file_yaml: JSONObj,
     lovelace_config: LovelaceConfig,
-) -> list[Exception]:
+) -> list[InvalidConfigurationError]:
     """Validate that all referenced decluttering templates are defined.
 
     Args:
@@ -147,7 +150,7 @@ def validate_decluttering_templates(
     Returns:
         list[Exception]: A list of exceptions raised during validation
     """
-    dc_template_issues: list[Exception] = []
+    dc_template_issues: list[InvalidConfigurationError] = []
 
     def _callback(
         string: str,
@@ -181,7 +184,7 @@ def validate_decluttering_templates(
 
         if string not in lovelace_config["decluttering_templates"]:
             dc_template_issues.append(
-                KeyError(f"Unknown decluttering template: {string}"),
+                DeclutteringTemplateNotFoundError(string),
             )
 
         return string
@@ -206,9 +209,9 @@ def main() -> None:
     ]
 
     # Unused files
-    all_issues: dict[str, list[Exception]] = {
+    all_issues: dict[str, list[InvalidConfigurationError]] = {
         f.relative_to(const.REPO_PATH).as_posix(): [
-            FileExistsError("File is not used in lovelace config."),
+            UnusedFileError(f),
         ]
         for f in all_lovelace_files
         if f.relative_to(const.REPO_PATH)
