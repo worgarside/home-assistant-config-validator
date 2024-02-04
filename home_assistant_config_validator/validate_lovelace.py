@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, TypedDict
@@ -209,33 +210,30 @@ def main() -> None:
     ]
 
     # Unused files
-    all_issues: dict[str, list[InvalidConfigurationError]] = {
-        f.relative_to(const.REPO_PATH).as_posix(): [
-            UnusedFileError(f),
-        ]
-        for f in all_lovelace_files
-        if f.relative_to(const.REPO_PATH)
-        not in [*imported_files, const.LOVELACE_ROOT_FILE.relative_to(const.REPO_PATH)]
-        and f.parent.name not in ("dashboards", "archive")
-    }
+    all_issues: defaultdict[Path, list[InvalidConfigurationError]] = defaultdict(list)
 
     # Use of unknown entities (that should be known)
     for ll_file in all_lovelace_files:
+        if ll_file.relative_to(const.REPO_PATH) not in [
+            *imported_files,
+            const.LOVELACE_ROOT_FILE.relative_to(const.REPO_PATH),
+        ] and ll_file.parent.name not in ("dashboards", "archive"):
+            all_issues[ll_file].append(UnusedFileError(ll_file))
+
         lovelace_file_yaml: JSONObj = load_yaml(ll_file, resolve_tags=False)
-        issues_key = ll_file.relative_to(const.REPO_PATH).as_posix()
 
         if bad_entity_usages := check_known_entity_usages(
             lovelace_file_yaml,
             entity_keys=("entity", "entity_id", "service"),
         ):
-            all_issues.setdefault(issues_key, []).extend(bad_entity_usages)
+            all_issues[ll_file].extend(bad_entity_usages)
 
         # Use of unknown decluttering templates
         if dc_template_issues := validate_decluttering_templates(
             lovelace_file_yaml,
             lovelace_config,
         ):
-            all_issues.setdefault(issues_key, []).extend(dc_template_issues)
+            all_issues[ll_file].extend(dc_template_issues)
 
     if not all_issues:
         sys.exit(0)

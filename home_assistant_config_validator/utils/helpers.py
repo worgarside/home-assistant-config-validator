@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Hashable, Iterable
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, TypedDict
 
 from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
@@ -163,8 +164,8 @@ def check_known_entity_usages(
 
 def format_output(
     data: (
-        dict[str, dict[str, list[InvalidConfigurationError]]]
-        | dict[str, list[InvalidConfigurationError]]
+        dict[str, dict[Path, list[InvalidConfigurationError]]]
+        | dict[Path, list[InvalidConfigurationError]]
         | list[InvalidConfigurationError]
     ),
     _indent: int = 0,
@@ -185,9 +186,15 @@ def format_output(
 
     if isinstance(data, dict):
         for key, value in data.items():
+            if not value:
+                continue
+
             if not _indent:
                 output += "\n"
-            output += f"{' ' * _indent}{key}\n{format_output(value, _indent + 2)}"
+
+            k = key.relative_to(const.REPO_PATH) if isinstance(key, Path) else key
+
+            output += f"{' ' * _indent}{k}\n{format_output(value, _indent + 2)}"
     elif isinstance(data, list):
         for exc in data:
             output += f"{'  ' * _indent}{type(exc).__name__}: {exc.fmt_msg}\n"

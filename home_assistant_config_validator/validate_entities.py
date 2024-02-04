@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.models.config import ValidationConfig
@@ -14,7 +15,7 @@ from home_assistant_config_validator.utils import (
 
 def main() -> None:
     """Validate all entities."""
-    all_issues: dict[str, dict[str, list[InvalidConfigurationError]]] = {}
+    all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
         if not pkg.entities:
@@ -27,8 +28,8 @@ def main() -> None:
 
         validator.validate_package()
 
-        if validator.package_issues:
-            all_issues[pkg.pkg_name] = validator.package_issues
+        if validator.issues:
+            all_issues[pkg.pkg_name] = validator.issues
 
     if not all_issues:
         sys.exit(0)
