@@ -9,13 +9,8 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from wg_utilities.functions.json import JSONObj
-
-from home_assistant_config_validator.models.config import (
-    DocumentationConfig,
-    ParserConfig,
-)
-from home_assistant_config_validator.utils import Secret, const
+from home_assistant_config_validator.models.config import DocumentationConfig
+from home_assistant_config_validator.utils import Entity, Secret, const
 
 from .package import Package
 
@@ -24,7 +19,7 @@ from .package import Package
 class ReadmeEntity:
     """A single entity to be used in the README."""
 
-    entity: JSONObj
+    entity: Entity
     package: Package
 
     @classmethod
@@ -34,9 +29,8 @@ class ReadmeEntity:
         /,
     ) -> Generator[ReadmeEntity, None, None]:
         """Generate a list of ReadmeEntity instances."""
-        parser = ParserConfig.get_for_package(package)
         for entity in package.entities:
-            yield cls(entity=parser.parse(entity), package=package)
+            yield cls(entity=entity, package=package)
 
     @staticmethod
     def markdown_format(
@@ -68,7 +62,7 @@ class ReadmeEntity:
     @property
     def entity_id(self) -> str:
         """Estimate the entity ID."""
-        e_id = self.docs_config.get_id(self.entity, default=self.entity["__file__"])
+        e_id = self.docs_config.get_id(self.entity, default=self.entity.file__)
 
         return f"{self.package.name}.{e_id.stem if isinstance(e_id, Path) else e_id}"
 
@@ -90,15 +84,15 @@ class ReadmeEntity:
     @property
     def fields(self) -> Generator[str, None, None]:
         """Generate the fields for the entity."""
-        for f in self.docs_config.extra:
+        for field in self.docs_config.extra:
             key = re.sub(
                 r"(^|\s)ID(\s|$)",
                 r"\1ID\2",
-                f.replace("_", " ").title(),
+                field.replace("_", " ").title(),
                 flags=re.IGNORECASE,
             )
 
-            if not (val := self.entity.get(f)):
+            if not (val := self.entity.get(field)):
                 yield f"- {key}:"
                 continue
 
@@ -125,7 +119,7 @@ class ReadmeEntity:
     @property
     def file(self) -> str:
         """Get the file path for the entity."""
-        if path := self.entity.get("__file__"):
+        if path := self.entity.get("file__"):
             path = Path(str(path))
             return self.markdown_format(
                 path.relative_to(const.ENTITIES_DIR),

@@ -15,24 +15,25 @@ from .exception import (
     PackageNotFoundError,
     ShouldBeEqualError,
     ShouldBeHardcodedError,
+    ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
     UnusedFileError,
     UserPCHConfigurationError,
 )
-from .ha_yaml_loader import Secret, Tag, TagWithPath, load_yaml
+from .ha_yaml_loader import Entity, Secret, Tag, TagWithPath, load_yaml
 from .helpers import (
     KnownEntityType,
     check_known_entity_usages,
     format_output,
     get_json_value,
     parse_jsonpath,
-    subclasses_recursive,
 )
 
 __all__ = [
     "const",
     "load_yaml",
+    "Entity",
     "ConfigurationError",
     "DeclutteringTemplateNotFoundError",
     "UserPCHConfigurationError",
@@ -50,13 +51,13 @@ __all__ = [
     "InvalidFieldTypeError",
     "TagWithPath",
     "Tag",
-    "subclasses_recursive",
     "parse_jsonpath",
     "InvalidConfigurationError",
     "get_json_value",
     "JsonPathNotFoundError",
     "ShouldBeHardcodedError",
     "ShouldBeEqualError",
+    "ShouldExistError",
     "ShouldMatchFileNameError",
     "ShouldMatchFilePathError",
 ]

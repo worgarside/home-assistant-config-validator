@@ -59,7 +59,6 @@ class ConfigurationType(StrEnum):
     """Enum for the different types of configurations."""
 
     DOCUMENTATION = "documentation"
-    PARSER = "parser"
     VALIDATION = "validation"
 
 

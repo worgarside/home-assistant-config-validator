@@ -21,9 +21,6 @@ def main() -> None:
         if not pkg.entities:
             continue
 
-        if pkg.pkg_name != "template_triggered":
-            continue
-
         validator = ValidationConfig.get_for_package(pkg)
 
         validator.validate_package()

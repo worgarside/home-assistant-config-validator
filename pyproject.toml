@@ -18,6 +18,7 @@ wg-utilities = { extras = ["logging"], version = "^5.8.3" }
 pytz = "^2024.1"
 pyyaml = "^6.0"
 jsonpath-ng = "^1.6.1"
+pydantic = "^2.6.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
@@ -48,6 +49,8 @@ add_imports = ["from __future__ import annotations"]
 profile = "black"
 
 [tool.mypy]
+plugins = "pydantic.mypy"
+
 disallow_any_generics = true
 disallow_subclassing_any = true
 disallow_untyped_calls = true
@@ -64,6 +67,12 @@ strict_optional = true
 
 strict_equality = true
 show_error_codes = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
 
 
 [tool.codespell]

@@ -2,42 +2,73 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Literal, TypedDict, cast
+from typing import Annotated, ClassVar, Literal, Self
 
-from wg_utilities.functions.json import JSONObj, JSONVal
+from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
+from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
+    Entity,
     InvalidConfigurationError,
     JsonPathNotFoundError,
     ShouldBeEqualError,
     ShouldBeHardcodedError,
+    ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
+    UserPCHConfigurationError,
     check_known_entity_usages,
     const,
     get_json_value,
 )
-from home_assistant_config_validator.utils.exception import UserPCHConfigurationError
 
 from .base import Config, replace_non_alphanumeric
-from .parser import ParserConfig
 
 
-class ShouldMatchFilepathItem(TypedDict):
+class ShouldMatchFilepathItem(BaseModel):
     """Type definition for a single item in the `should_match_filepath` list."""
 
-    field: str
     separator: str
-    prefix: str
-    ignore_chars: str
-    include_domain_dir: bool
-    remove_sensor_prefix: bool
+    prefix: str = ""
+    ignore_chars: str = ""
+    include_domain_dir: bool = False
+    remove_sensor_prefix: bool = False
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_config(self) -> Self:
+        """Validate the configuration for a `should_match_filepath` item."""
+        if self.include_domain_dir and self.remove_sensor_prefix:
+            raise UserPCHConfigurationError(
+                const.ConfigurationType.VALIDATION,
+                "unknown",
+                "include_domain_dir and remove_sensor_prefix are mutually exclusive",
+            )
+
+        return self
 
 
-@dataclass
+def validate_json_path(path: str, /) -> JSONPath:
+    """Validate a JSONPath string."""
+    try:
+        parse(path)
+    except JsonPathParserError:
+        raise UserPCHConfigurationError(
+            const.ConfigurationType.VALIDATION,
+            "unknown",
+            f"Invalid JSONPath: {path}",
+        ) from None
+
+    return path
+
+
+JSONPathStr = Annotated[str, AfterValidator(validate_json_path)]
+
+
 class ValidationConfig(Config):
     """Dataclass for a package's validator configuration."""
 
@@ -47,23 +78,23 @@ class ValidationConfig(Config):
 
     package: Package
 
-    should_be_equal: list[tuple[str, ...]] = field(default_factory=list)
-    should_be_hardcoded: dict[str, JSONVal] = field(default_factory=dict)
-    should_exist: list[str] = field(default_factory=list)
-    should_match_filename: list[str] = field(default_factory=list)
-    should_match_filepath: list[ShouldMatchFilepathItem] = field(
-        default_factory=list,
+    should_be_equal: list[tuple[JSONPathStr, ...]] = Field(default_factory=list)
+    should_be_hardcoded: dict[JSONPathStr, object] = Field(default_factory=dict)
+    should_exist: list[JSONPathStr] = Field(default_factory=list)
+    should_match_filename: list[JSONPathStr] = Field(default_factory=list)
+    should_match_filepath: dict[JSONPathStr, ShouldMatchFilepathItem] = Field(
+        default_factory=dict,
     )
 
-    issues: dict[Path, list[InvalidConfigurationError]] = field(default_factory=dict)
+    issues: dict[Path, list[InvalidConfigurationError]] = Field(default_factory=dict)
 
-    def _validate_should_be_equal(self, entity_yaml: JSONObj, /) -> None:
+    def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for field_name_1, field_name_2 in self.should_be_equal:
             try:
                 if (field_value_1 := get_json_value(entity_yaml, field_name_1)) != (
                     field_value_2 := get_json_value(entity_yaml, field_name_2)
                 ):
-                    self.issues[self.entity_file(entity_yaml)].append(
+                    self.issues[entity_yaml.file__].append(
                         ShouldBeEqualError(
                             f1=field_name_1,
                             v1=field_value_1,
@@ -72,14 +103,14 @@ class ValidationConfig(Config):
                         ),
                     )
             except JsonPathNotFoundError as exc:
-                self.issues[self.entity_file(entity_yaml)].append(exc)
+                self.issues[entity_yaml.file__].append(exc)
 
-    def _validate_should_be_hardcoded(self, entity_yaml: JSONObj, /) -> None:
+    def _validate_should_be_hardcoded(self, entity_yaml: Entity, /) -> None:
         for sbh_field, hardcoded_value in self.should_be_hardcoded.items():
             if (
                 field_value := get_json_value(entity_yaml, sbh_field)
             ) != hardcoded_value:
-                self.issues[self.entity_file(entity_yaml)].append(
+                self.issues[entity_yaml.file__].append(
                     ShouldBeHardcodedError(
                         sbh_field,
                         field_value,
@@ -87,14 +118,14 @@ class ValidationConfig(Config):
                     ),
                 )
 
-    def _validate_should_exist(self, entity_yaml: JSONObj, /) -> None:
+    def _validate_should_exist(self, entity_yaml: Entity, /) -> None:
         for se_field in self.should_exist:
             try:
                 get_json_value(entity_yaml, se_field)
             except JsonPathNotFoundError as exc:
-                self.issues[self.entity_file(entity_yaml)].append(exc)
+                self.issues[entity_yaml.file__].append(ShouldExistError(se_field, exc))
 
-    def _validate_should_match_filename(self, entity_yaml: JSONObj, /) -> None:
+    def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
         for smfn_field in self.should_match_filename:
             try:
@@ -106,8 +137,8 @@ class ValidationConfig(Config):
                             valid_type=str,
                         ),
                     )
-                ) != self.entity_file(entity_yaml).with_suffix("").name.lower():
-                    self.issues[self.entity_file(entity_yaml)].append(
+                ) != entity_yaml.file__.with_suffix("").name.lower():
+                    self.issues[entity_yaml.file__].append(
                         ShouldMatchFileNameError(smfn_field, field_value, fmt_value),
                     )
             except JsonPathNotFoundError:
@@ -115,60 +146,59 @@ class ValidationConfig(Config):
                 # (e.g. name). If it's required, it'll get picked up in the other checks.
                 continue
 
-    def _validate_should_match_filepath(self, entity_yaml: JSONObj, /) -> None:
-        for smfp_config in self.should_match_filepath:
-            remove_sensor_prefix = smfp_config.get("remove_sensor_prefix", False)
-
-            if smfp_config.get("include_domain_dir", False):
-                # TODO move this to validator
-                if remove_sensor_prefix:
-                    raise UserPCHConfigurationError(
-                        self.CONFIGURATION_TYPE,
-                        self.package.pkg_name,
-                        "include_domain_dir and remove_sensor_prefix are mutually exclusive",
-                    )
-
+    def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
+        for field_path, smfp_config in self.should_match_filepath.items():
+            if smfp_config.include_domain_dir:
                 filepath_parts = (
-                    self.entity_file(entity_yaml)
-                    .with_suffix("")
+                    entity_yaml.file__.with_suffix("")
                     .relative_to(const.ENTITIES_DIR)
                     .parts
                 )
             else:
                 filepath_parts = (
-                    self.entity_file(entity_yaml)
-                    .with_suffix("")
+                    entity_yaml.file__.with_suffix("")
                     .relative_to(const.ENTITIES_DIR / self.package.name)
                     .parts
                 )
 
-            if remove_sensor_prefix and filepath_parts[0] in (
+            if smfp_config.remove_sensor_prefix and filepath_parts[0] in (
                 "binary_sensor",
                 "sensor",
             ):
                 filepath_parts = filepath_parts[1:]
 
-            expected_value = smfp_config.get("prefix", "") + (
-                sep := smfp_config["separator"]
-            ).join(filepath_parts)
-
-            actual_value = replace_non_alphanumeric(
-                get_json_value(entity_yaml, smfp_config["field"]),
-                ignore_chars=sep.replace(" ", ""),
+            expected_value = smfp_config.prefix + smfp_config.separator.join(
+                filepath_parts,
             )
 
-            if sep == " ":
-                actual_value = actual_value.replace("_", " ")
+            if smfp_config.separator == " ":
                 expected_value = expected_value.replace("_", " ")
 
-            if expected_value != actual_value:
-                self.issues[self.entity_file(entity_yaml)].append(
+            try:
+                actual_value = replace_non_alphanumeric(
+                    get_json_value(entity_yaml, field_path, valid_type=str),
+                    ignore_chars=smfp_config.separator.replace(" ", ""),
+                )
+            except InvalidConfigurationError:
+                self.issues[entity_yaml.file__].append(
                     ShouldMatchFilePathError(
-                        smfp_config["field"],
-                        actual_value,
+                        field_path,
+                        None,
                         expected_value,
                     ),
                 )
+            else:
+                if smfp_config.separator == " ":
+                    actual_value = actual_value.replace("_", " ")
+
+                if expected_value != actual_value:
+                    self.issues[entity_yaml.file__].append(
+                        ShouldMatchFilePathError(
+                            field_path,
+                            actual_value,
+                            expected_value,
+                        ),
+                    )
 
     def validate_package(self) -> None:
         """Validate a package's YAML files.
@@ -181,13 +211,10 @@ class ValidationConfig(Config):
         Invalid files are added to the `self._package_issues` dict, with the file path
         as the key and a list of exceptions as the value.
         """
-        parser = ParserConfig.get_for_package(self.package)
+        for entity_yaml in self.package.entities:
 
-        for entity in self.package.entities:
-            entity_yaml = parser.parse(entity)
-
-            self.issues[self.entity_file(entity_yaml)] = check_known_entity_usages(
-                entity_yaml,
+            self.issues[entity_yaml.file__] = check_known_entity_usages(
+                entity_yaml.model_dump(),
                 entity_keys=("entity_id", "service"),
             )
 
@@ -196,11 +223,3 @@ class ValidationConfig(Config):
             self._validate_should_match_filename(entity_yaml)
             self._validate_should_match_filepath(entity_yaml)
             self._validate_should_be_hardcoded(entity_yaml)
-
-    @staticmethod
-    def entity_file(entity_yaml: JSONObj, /) -> Path:
-        """Get the file path for the entity."""
-        if not isinstance(entity_yaml["__file__"], Path):
-            entity_yaml["__file__"] = Path(str(entity_yaml["__file__"]))
-
-        return cast(Path, entity_yaml["__file__"])

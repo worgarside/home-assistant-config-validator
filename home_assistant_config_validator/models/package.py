@@ -12,6 +12,7 @@ from wg_utilities.functions.json import JSONObj, process_json_object
 from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.utils import (
+    Entity,
     PackageDefinitionError,
     PackageNotFoundError,
     TagWithPath,
@@ -36,7 +37,7 @@ class Package:
     pkg_name: str
     name: str
     root_path: Path
-    entities: list[JSONObj] = field(default_factory=list)
+    entities: list[Entity] = field(default_factory=list)
 
     def __post_init__(self: Self) -> None:
         """Add the instance to the instances dict."""
@@ -94,7 +95,7 @@ class Package:
         else:
             raise PackageDefinitionError(file, f"invalid split keys {key_set!r}")
 
-        entities: list[JSONObj] = []
+        entities: list[Entity] = []
 
         def _add_to_entities_and_resolve(
             tag: TagWithPath[Any, Any],
