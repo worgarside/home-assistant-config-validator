@@ -15,7 +15,7 @@ from wg_utilities.functions.json import JSONObj
 from wg_utilities.loggers import add_stream_handler
 from yaml import safe_load
 
-from home_assistant_config_validator.models.package import Package
+from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, const
 
 LOGGER = getLogger(__name__)

@@ -9,7 +9,7 @@ from wg_utilities.functions.json import JSONObj
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import const
-from home_assistant_config_validator.utils.helpers import parse_jsonpath
+from home_assistant_config_validator.utils import parse_jsonpath
 
 from .base import Config
 
