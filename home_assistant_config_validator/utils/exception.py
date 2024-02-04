@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +85,124 @@ class PackageDefinitionError(FileContentError):
     def __init__(self, file: Path, message: str) -> None:
         """Initialize the error."""
         super().__init__(file, f"package definition invalid: {message}")
+
+
+class InvalidConfigurationError(HomeAssistantConfigurationError):
+    """Raised when a configuration is invalid."""
+
+    fmt_msg: str
+
+    def __init__(self, message: str) -> None:
+        """Initialize the error."""
+        super().__init__(message)
+
+        if not hasattr(self, "fmt_msg"):
+            self.fmt_msg = message
+
+
+class UnusedFileError(InvalidConfigurationError):
+    """Raised when a file is not used."""
+
+    def __init__(self, file: Path) -> None:
+        """Initialize the error."""
+        super().__init__(f"File not used: {file}")
+
+        self.fmt_msg = file.as_posix()
+
+
+class NotFoundError(InvalidConfigurationError):
+    """Raised when something isn't found."""
+
+
+class DeclutteringTemplateNotFoundError(NotFoundError):
+    """Raised when a decluttering template is not found."""
+
+    def __init__(self, template: str) -> None:
+        """Initialize the error."""
+        super().__init__(f"Decluttering template not found: {template!r}")
+
+        self.fmt_msg = template
+
+
+class JsonPathNotFoundError(NotFoundError):
+    """Raised when a JSON path is not found."""
+
+    def __init__(self, path: str) -> None:
+        """Initialize the error."""
+        super().__init__(f"JSON path not found but should be defined: {path!r}")
+
+        self.fmt_msg = path
+
+
+class InvalidFieldTypeError(InvalidConfigurationError):
+    """Raised when a field has an invalid type."""
+
+    def __init__(
+        self,
+        field: str,
+        value: Any,
+        expected_type: type | tuple[type, ...],
+    ) -> None:
+        """Initialize the error."""
+        if isinstance(value, list):
+            types = ", ".join(type(v).__name__ for v in value)
+        else:
+            types = type(value).__name__
+
+        super().__init__(
+            f"{field} has invalid type {types}, expected {expected_type!s}",
+        )
+
+
+class InvalidFieldValueError(InvalidConfigurationError):
+    """Raised when a field has an invalid value."""
+
+    def __init__(self, field: str, value: Any, message: str) -> None:
+        """Initialize the error."""
+        super().__init__(f"{field} has invalid value {value!r}: {message}")
+
+        self.fmt_msg = message
+
+
+class ShouldBeHardcodedError(InvalidConfigurationError):
+    """Raised when a field should be hardcoded but isn't."""
+
+    def __init__(self, field: str, value: Any, hardcoded_value: Any) -> None:
+        """Initialize the error."""
+        super().__init__(
+            f"`{field}: {value!s}` should be hardcoded as {hardcoded_value!r}",
+        )
+
+
+class ShouldBeEqualError(InvalidConfigurationError):
+    """Raised when a field should match another field but doesn't."""
+
+    def __init__(self, *, f1: str, f2: str, v1: Any, v2: Any) -> None:
+        """Initialize the error."""
+        v1_str = re.sub(r"\s+", " ", str(v1)).strip()
+        v2_str = re.sub(r"\s+", " ", str(v2)).strip()
+
+        super().__init__(f'`{f1}: "{v1_str}"` should match `{f2}: "{v2_str}"`')
+
+
+class ShouldMatchFileNameError(InvalidConfigurationError):
+    """Raised when a field should match the file name but doesn't."""
+
+    def __init__(self, field: str, value: Any, fmt_value: str) -> None:
+        """Initialize the error."""
+        super().__init__(
+            f"`{field}: {value!s}` ({fmt_value=}) should match file name",
+        )
+
+
+class ShouldMatchFilePathError(InvalidConfigurationError):
+    """Raised when a field should match the file path but doesn't."""
+
+    def __init__(self, field: str, value: Any, expected_value: str) -> None:
+        """Initialize the error."""
+        super().__init__(
+            f"`{field}: {(value or 'null')!s}` should match file path: `{expected_value!s}`",
+        )
 
 
 __all__ = [
