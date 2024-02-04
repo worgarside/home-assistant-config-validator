@@ -1,18 +1,13 @@
-# pylint: disable=cyclic-import
-"""Constants for the configuration validator."""
-
+"""Helper functions for the Home Assistant Config Validator."""
 
 from __future__ import annotations
 
 import re
-from argparse import ArgumentParser
-from collections.abc import Iterable
-from enum import StrEnum
+from collections.abc import Hashable, Iterable
 from functools import lru_cache
-from os import getenv
-from pathlib import Path
-from typing import Final, TypedDict
+from typing import Any, TypedDict
 
+from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
     JSONArr,
@@ -20,51 +15,14 @@ from wg_utilities.functions.json import (
     process_json_object,
 )
 
-REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd().absolute().as_posix()))
-
-# Args
-
-parser = ArgumentParser(description="Custom Component Parser")
-
-parser.add_argument(
-    "-p",
-    "--pch-config-path",
-    type=Path,
-    required=False,
-    help="Path to custom validations configuration file.",
-    default=REPO_PATH / "config_validator.json",
-)
-
-parser.add_argument(
-    "-a",
-    "--validate-all",
-    action="store_true",
-    help="Validate all packages (requires exactly one configuration per package).",
-    default=False,
-)
-
-parser.add_argument(
-    "-c",
-    "--ha-config-path",
-    type=Path,
-    required=False,
-    help="Path to Home Assistant configuration.yaml",
-    default=REPO_PATH / "configuration.yaml",
-)
-
-args, _ = parser.parse_known_args()
+from . import const
 
 
-PCH_CONFIG: Path = args.pch_config_path
-VALIDATE_ALL_PACKAGES: bool = args.validate_all
-HA_CONFIG: Path = args.ha_config_path
+class KnownEntityType(TypedDict):
+    """Known entity type."""
 
-ENTITIES_DIR = REPO_PATH / "entities"
-PACKAGES_DIR = REPO_PATH / "integrations"
-LOVELACE_DIR = REPO_PATH / "lovelace"
-LOVELACE_ROOT_FILE = REPO_PATH / "ui-lovelace.yaml"
-
-NULL_PATH: Final[Path] = Path("/dev/null")
+    names: list[str]
+    name_pattern: re.Pattern[str]
 
 
 KNOWN_SERVICES = {
@@ -76,38 +34,23 @@ KNOWN_SERVICES = {
 }
 
 
-class ConfigurationType(StrEnum):
-    """Enum for the different types of configurations."""
-
-    DOCUMENTATION = "documentation"
-    PARSER = "parser"
-    VALIDATION = "validation"
-
-
-class KnownEntityType(TypedDict):
-    """Known entity type."""
-
-    names: list[str]
-    name_pattern: re.Pattern[str]
-
-
 @lru_cache(maxsize=1)
 def _get_known_entities() -> dict[str, KnownEntityType]:
     # pylint: disable=import-outside-toplevel
-    from home_assistant_config_validator.ha_yaml_loader import load_yaml
+    from home_assistant_config_validator.utils.ha_yaml_loader import load_yaml
 
     known_entities: dict[str, KnownEntityType] = {
-        domain: {
+        package: {
             "names": [
-                f"{domain}.{entity_file.stem}"
-                for entity_file in (ENTITIES_DIR / domain).rglob("*.yaml")
+                f"{package}.{entity_file.stem}"
+                for entity_file in (const.ENTITIES_DIR / package).rglob("*.yaml")
             ],
             "name_pattern": re.compile(
-                rf"^{domain}\.[a-z0-9_-]+$",
+                rf"^{package}\.[a-z0-9_-]+$",
                 flags=re.IGNORECASE,
             ),
         }
-        for domain in (
+        for package in (
             "input_boolean",
             "input_button",
             "input_datetime",
@@ -129,7 +72,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
                     str(load_yaml(automation_file, resolve_tags=False).get("id", "")),
                 ),
             )
-            for automation_file in (ENTITIES_DIR / "automation").rglob("*.yaml")
+            for automation_file in (const.ENTITIES_DIR / "automation").rglob("*.yaml")
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
     }
@@ -143,8 +86,8 @@ def check_known_entity_usages(
 ) -> list[Exception]:
     """Check that all entities used in the config YAML are defined elsewhere.
 
-    This only applies to the domains which are solely defined in YAML files; any
-    domains which have entities that can be defined through the
+    This only applies to the packages which are solely defined in YAML files; any
+    packages which have entities that can be defined through the
 
     Args:
         entity_yaml (JSONObj | JSONArr): The entity's YAML
@@ -172,12 +115,12 @@ def check_known_entity_usages(
         if not dict_key or dict_key not in entity_keys:
             return value
 
-        for domain, entity_comparands in _get_known_entities().items():
+        for package, entity_comparands in _get_known_entities().items():
             if (not entity_comparands["name_pattern"].fullmatch(value)) or (
                 dict_key == "service"
                 and (
-                    domain not in ("script", "shell_command")
-                    or value.split(".")[1] in KNOWN_SERVICES.get(domain, ())
+                    package not in ("script", "shell_command")
+                    or value.split(".")[1] in KNOWN_SERVICES.get(package, ())
                 )
             ):
                 continue
@@ -187,7 +130,7 @@ def check_known_entity_usages(
                     ValueError(
                         " ".join(
                             (
-                                domain.replace("_", " ").title(),
+                                package.replace("_", " ").title(),
                                 dict_key.replace("_", " ").title(),
                                 value,
                                 "is not defined",
@@ -247,9 +190,35 @@ def format_output(
     return output
 
 
+@lru_cache
+def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
+    """Parse a JSONPath expression."""
+    return parse(__jsonpath)
+
+
+@lru_cache
+def subclasses_recursive(
+    cls: type[Hashable],
+) -> tuple[type[Any], ...]:
+    """Get all subclasses of a class recursively.
+
+    Args:
+        cls (type[_CustomTag]): The class to get the subclasses of.
+
+    Returns:
+        list[type[_CustomTag]]: A list of all subclasses of the class.
+    """
+    indirect: list[type[Any]] = []
+    for subclass in (direct := cls.__subclasses__()):
+        indirect.extend(subclasses_recursive(subclass))
+
+    return tuple(direct + indirect)
+
+
 __all__ = [
-    "ENTITIES_DIR",
-    "PACKAGES_DIR",
-    "REPO_PATH",
+    "check_known_entity_usages",
     "format_output",
+    "parse_jsonpath",
+    "subclasses_recursive",
+    "KnownEntityType",
 ]

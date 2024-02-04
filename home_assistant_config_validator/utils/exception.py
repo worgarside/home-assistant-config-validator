@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from home_assistant_config_validator.const import ConfigurationType
+from home_assistant_config_validator.utils import const
 
 
 class ConfigurationError(Exception):
@@ -17,7 +17,7 @@ class UserPCHConfigurationError(ConfigurationError):
 
     def __init__(
         self,
-        configuration_type: ConfigurationType,
+        configuration_type: const.ConfigurationType,
         package: str,
         message: str,
     ) -> None:
@@ -84,3 +84,15 @@ class PackageDefinitionError(FileContentError):
     def __init__(self, file: Path, message: str) -> None:
         """Initialize the error."""
         super().__init__(file, f"package definition invalid: {message}")
+
+
+__all__ = [
+    "ConfigurationError",
+    "UserPCHConfigurationError",
+    "HomeAssistantConfigurationError",
+    "FileContentError",
+    "FileContentTypeError",
+    "EntityDefinitionError",
+    "PackageNotFoundError",
+    "PackageDefinitionError",
+]

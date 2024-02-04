@@ -9,16 +9,12 @@ from typing import Any, TypedDict
 
 from wg_utilities.functions.json import JSONObj, JSONVal, traverse_dict
 
-from home_assistant_config_validator.const import (
-    LOVELACE_DIR,
-    LOVELACE_ROOT_FILE,
-    REPO_PATH,
-    check_known_entity_usages,
-    format_output,
-)
-from home_assistant_config_validator.ha_yaml_loader import (
+from home_assistant_config_validator.utils import (
     Secret,
     Tag,
+    check_known_entity_usages,
+    const,
+    format_output,
     load_yaml,
     subclasses_recursive,
 )
@@ -82,7 +78,7 @@ def create_callback(
             load_data_relative_to / yaml_tag.path  # type: ignore[attr-defined]
         ).resolve()
 
-        imported_files.append(import_path.relative_to(REPO_PATH))
+        imported_files.append(import_path.relative_to(const.REPO_PATH))
 
         return load_yaml(import_path, resolve_tags=False)
 
@@ -99,7 +95,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
             files for later reference.
     """
     lovelace_config: LovelaceConfig = load_yaml(  # type: ignore[assignment]
-        LOVELACE_ROOT_FILE,
+        const.LOVELACE_ROOT_FILE,
         resolve_tags=False,
     )
 
@@ -110,14 +106,14 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
     traverse_dict(
         lovelace_config,  # type: ignore[arg-type]
         target_type=target_types,
-        target_processor_func=create_callback(  # type: ignore[arg-type]
-            LOVELACE_ROOT_FILE,
+        target_processor_func=create_callback(
+            const.LOVELACE_ROOT_FILE,
             imported_files,
         ),
         pass_on_fail=False,
     )
 
-    for dashboard_file in (LOVELACE_DIR / "dashboards").glob("*.yaml"):
+    for dashboard_file in (const.LOVELACE_DIR / "dashboards").glob("*.yaml"):
         dashboard_yaml: DashboardConfig = load_yaml(  # type: ignore[assignment]
             dashboard_file,
             resolve_tags=False,
@@ -126,7 +122,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
         traverse_dict(
             dashboard_yaml,  # type: ignore[arg-type]
             target_type=target_types,
-            target_processor_func=create_callback(  # type: ignore[arg-type]
+            target_processor_func=create_callback(
                 dashboard_file,
                 imported_files,
             ),
@@ -205,25 +201,25 @@ def main() -> None:
     lovelace_config, imported_files = load_lovelace_config()
 
     all_lovelace_files = [
-        *list(LOVELACE_DIR.rglob("*.yaml")),
-        REPO_PATH / "ui-lovelace.yaml",
+        *list(const.LOVELACE_DIR.rglob("*.yaml")),
+        const.REPO_PATH / "ui-lovelace.yaml",
     ]
 
     # Unused files
     all_issues: dict[str, list[Exception]] = {
-        f.relative_to(REPO_PATH).as_posix(): [
+        f.relative_to(const.REPO_PATH).as_posix(): [
             FileExistsError("File is not used in lovelace config."),
         ]
         for f in all_lovelace_files
-        if f.relative_to(REPO_PATH)
-        not in [*imported_files, LOVELACE_ROOT_FILE.relative_to(REPO_PATH)]
+        if f.relative_to(const.REPO_PATH)
+        not in [*imported_files, const.LOVELACE_ROOT_FILE.relative_to(const.REPO_PATH)]
         and f.parent.name not in ("dashboards", "archive")
     }
 
     # Use of unknown entities (that should be known)
     for ll_file in all_lovelace_files:
         lovelace_file_yaml: JSONObj = load_yaml(ll_file, resolve_tags=False)
-        issues_key = ll_file.relative_to(REPO_PATH).as_posix()
+        issues_key = ll_file.relative_to(const.REPO_PATH).as_posix()
 
         if bad_entity_usages := check_known_entity_usages(
             lovelace_file_yaml,

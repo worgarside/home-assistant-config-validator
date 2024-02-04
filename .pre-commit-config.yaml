@@ -96,6 +96,7 @@ repos:
           - --strict
           - --show-error-codes
         additional_dependencies:
+          - jsonpath-ng==1.6.1
           - types-PyYAML
           - wg-utilities==5.8.3
 
