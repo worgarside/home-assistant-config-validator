@@ -11,9 +11,9 @@ from typing import Any
 
 from wg_utilities.functions.json import JSONObj
 
-from home_assistant_config_validator.models.config import ParserConfig
 from home_assistant_config_validator.models.config import (
     DocumentationConfig,
+    ParserConfig,
 )
 from home_assistant_config_validator.utils import Secret, const
 
