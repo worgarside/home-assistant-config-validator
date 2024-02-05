@@ -212,7 +212,7 @@ class ShouldMatchFilePathError(InvalidConfigurationError):
     def __init__(self, field: str, value: Any, expected_value: str) -> None:
         """Initialize the error."""
         super().__init__(
-            f"`{field}: {(value or 'null')!s}` should match file path: `{expected_value!s}`",
+            f"{field}: `{(value)!s}` should match file path `{expected_value!s}`",
         )
 
 

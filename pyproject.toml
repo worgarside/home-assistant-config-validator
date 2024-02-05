@@ -86,7 +86,7 @@ no_gitignore = false
 
 [tool.ruff]
 line-length = 100
-select = [
+lint.select = [
   "A",   # https://docs.astral.sh/ruff/rules/#flake8-builtins-a
   "ARG", # https://docs.astral.sh/ruff/rules/#flake8-unused-arguments-arg
   "B",   # https://docs.astral.sh/ruff/rules/#flake8-bugbear-b
@@ -119,13 +119,13 @@ select = [
   "W",   # https://docs.astral.sh/ruff/rules/#warning-w
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.pylint]
+[tool.ruff.lint.pylint]
 max-args = 6
 
 [tool.vulture]

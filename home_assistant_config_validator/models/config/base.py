@@ -23,24 +23,40 @@ LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
 
-def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
-    """Convert a string to be alphanumeric and snake_case.
+def replace_non_alphanumeric(
+    string: str,
+    ignore_chars: str = "",
+    *,
+    replace_with: str = "_",
+) -> str:
+    """Convert a string to be alphanumeric and snake_case (by default).
 
     Leading/trailing underscores are removed, and double (or more) underscores are
     replaced with a single underscore. Ignores values within `string` that are also in
     `ignore_strings`.
 
+    Characters other than underscores can be replaced with a different character by
+    passing `replace_with`.
+
     Args:
         string (str): The string to convert
         ignore_chars (str, optional): Other characters to ignore. Defaults to None.
+        replace_with (str, optional): The character to replace non-alphanumeric characters
+            with. Defaults to "_".
 
     Returns:
         str: The converted string
     """
     return (
-        sub(r"_{2,}", "_", sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", "_", string))
-        .lower()
-        .strip("_")
+        # The outer sub replaces double (or more) `replace_with` with a single `replace_with`
+        sub(
+            rf"{escape(replace_with)}{{2,}}",
+            replace_with,
+            # The inner sub replaces non-alphanumeric characters with `replace_with`
+            sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", replace_with, string),
+        )
+        .strip(replace_with)
+        .casefold()
     )
 
 
