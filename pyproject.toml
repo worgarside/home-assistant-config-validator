@@ -19,10 +19,6 @@ pytz = "^2024.1"
 pyyaml = "^6.0"
 jsonpath-ng = "^1.6.1"
 
-[tool.poetry.group.dev.dependencies]
-pylint-strict-informational = "^0.1"
-pylint = "<4.0.0"
-
 [build-system]
 build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]
@@ -96,6 +92,7 @@ select = [
   "G",   # https://docs.astral.sh/ruff/rules/#flake8-logging-format-g
   "I",   # https://docs.astral.sh/ruff/rules/#isort-i
   "ICN", # https://docs.astral.sh/ruff/rules/#flake8-import-conventions-icn
+  "LOG", # https://docs.astral.sh/ruff/rules/#flake8-logging-log
   "N",   # https://docs.astral.sh/ruff/rules/#pep8-naming-n
   "PGH", # https://docs.astral.sh/ruff/rules/#pygrep-hooks-pgh
   "PIE", # https://docs.astral.sh/ruff/rules/#flake8-pie-pie

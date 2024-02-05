@@ -100,23 +100,6 @@ repos:
           - types-PyYAML
           - wg-utilities==5.8.3
 
-  - repo: local
-    hooks:
-      - id: pylint
-        name: pylint
-        entry: pylint
-        args:
-          - --disable=fixme
-          - --enable=useless-suppression
-          - --rcfile=.pylintrc
-          - --load-plugins=pylint_strict_informational
-        language: python
-        types:
-          - python
-        additional_dependencies:
-          - pylint==3.0.3
-          - pylint-strict-informational==0.1
-
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
