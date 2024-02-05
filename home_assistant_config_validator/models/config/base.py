@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from abc import ABC
 from collections import defaultdict
-from dataclasses import dataclass
 from functools import lru_cache
 from json import loads
 from logging import getLogger
 from re import escape, sub
 from typing import ClassVar, Self
 
+from pydantic import BaseModel, ConfigDict
 from wg_utilities.functions.json import JSONObj
 from wg_utilities.loggers import add_stream_handler
 from yaml import safe_load
@@ -44,8 +44,7 @@ def replace_non_alphanumeric(string: str, ignore_chars: str = "") -> str:
     )
 
 
-@dataclass
-class Config(ABC):
+class Config(BaseModel, ABC):
     """Base class for configuration classes."""
 
     CONFIGURATION_TYPE: ClassVar[const.ConfigurationType]
@@ -53,6 +52,11 @@ class Config(ABC):
 
     INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = (
         defaultdict(dict)
+    )
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="forbid",
     )
 
     @classmethod

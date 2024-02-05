@@ -9,6 +9,7 @@ from logging import getLogger
 from pathlib import Path, PurePath
 from typing import Any, ClassVar, Generic, Literal, Self, TypeVar, cast, get_origin
 
+from pydantic import BaseModel, ConfigDict, Field
 from wg_utilities.functions.json import (
     JSONObj,
     JSONVal,
@@ -20,7 +21,6 @@ from yaml import SafeLoader, ScalarNode, load
 
 from . import const
 from .exception import FileContentTypeError
-from .helpers import subclasses_recursive
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("INFO")
@@ -30,6 +30,17 @@ F = TypeVar("F", JSONObj, list[JSONObj])
 
 ResTo = TypeVar("ResTo", bound=JSONVal)
 ResToPath = TypeVar("ResToPath", JSONObj, list[JSONObj], JSONObj | list[JSONObj])
+
+
+class Entity(BaseModel):
+
+    file__: Path = Field(exclude=True)
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+
+    def get(self, key: str, default: Any = None, /) -> Any:
+        """Get a value from the entity."""
+        return getattr(self, key, default)
 
 
 class HAYamlLoader(SafeLoader):
@@ -62,6 +73,27 @@ class Tag(ABC, Generic[ResTo]):
             _CustomTag: The constructed custom tag
         """
         return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[arg-type]
+
+    @staticmethod
+    def subclasses_recursive(
+        __cls: type[Tag[Any]] | None = None,
+        /,
+    ) -> tuple[type[Any], ...]:
+        """Get all subclasses of a class recursively.
+
+        Args:
+            cls (type[_CustomTag]): The class to get the subclasses of.
+
+        Returns:
+            list[type[_CustomTag]]: A list of all subclasses of the class.
+        """
+        __cls = __cls or Tag
+
+        indirect: list[type[Any]] = []
+        for subclass in (direct := __cls.__subclasses__()):
+            indirect.extend(__cls.subclasses_recursive(subclass))
+
+        return tuple(direct + indirect)
 
     @abstractmethod
     def resolve(
@@ -191,7 +223,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
                 or not value.file
                 or value.file == const.NULL_PATH
             ):
-                value.file = file
+                value.file = file.resolve(strict=True)
 
             return value
 
@@ -212,7 +244,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         self,
         file: Path,
         file_content: F,
-    ) -> Generator[JSONObj, None, None]:
+    ) -> Generator[Entity, None, None]:
         """Get the entities from the file content."""
         raise NotImplementedError
 
@@ -259,7 +291,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         return data
 
     @property
-    def entities(self) -> Generator[JSONObj, None, None]:
+    def entities(self) -> Generator[Entity, None, None]:
         for file in sorted(self.absolute_path.rglob("*.yaml")):
             file_content: F = load_yaml(
                 file,
@@ -311,7 +343,7 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
         file: Path,
         file_content: JSONObj,
     ) -> list[JSONObj]:
-        file_content["__file__"] = file.resolve()
+        file_content["file__"] = file.resolve()
         data.append(file_content)
         return data
 
@@ -319,10 +351,10 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
         self,
         file: Path,
         file_content: JSONObj,
-    ) -> Generator[JSONObj, None, None]:
-        file_content["__file__"] = file.resolve()
+    ) -> Generator[Entity, None, None]:
+        file_content["file__"] = file.resolve()
 
-        yield file_content
+        yield Entity.model_validate(file_content)
 
 
 @dataclass
@@ -349,7 +381,7 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         file_content: list[JSONObj],
     ) -> list[JSONObj]:
         for elem in file_content:
-            elem["__file__"] = file.resolve()
+            elem["file__"] = file.resolve()
 
         data.extend(file_content)
         return data
@@ -358,11 +390,11 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         self,
         file: Path,
         file_content: list[JSONObj],
-    ) -> Generator[JSONObj, None, None]:
+    ) -> Generator[Entity, None, None]:
         for elem in file_content:
-            elem["__file__"] = file.resolve()
+            elem["file__"] = file.resolve()
 
-            yield elem
+            yield Entity.model_validate(elem)
 
 
 @dataclass
@@ -388,7 +420,7 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
         file: Path,
         file_content: JSONObj,
     ) -> JSONObj:
-        file_content["__file__"] = file.resolve()
+        file_content["file__"] = file.resolve()
         data.update(file_content)
         return data
 
@@ -396,9 +428,9 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
         self,
         file: Path,
         file_content: JSONObj,
-    ) -> Generator[JSONObj, None, None]:
-        file_content["__file__"] = file.resolve()
-        yield file_content
+    ) -> Generator[Entity, None, None]:
+        file_content["file__"] = file.resolve()
+        yield Entity.model_validate(file_content)
 
 
 @dataclass
@@ -424,7 +456,7 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         file: Path,
         file_content: JSONObj,
     ) -> JSONObj:
-        file_content["__file__"] = file.resolve()
+        file_content["file__"] = file.resolve()
         data[file.stem] = file_content
         return data
 
@@ -432,10 +464,10 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         self,
         file: Path,
         file_content: JSONObj,
-    ) -> Generator[JSONObj, None, None]:
-        file_content["__file__"] = file.resolve()
+    ) -> Generator[Entity, None, None]:
+        file_content["file__"] = file.resolve()
 
-        yield file_content
+        yield Entity.model_validate(file_content)
 
 
 def load_yaml(
@@ -496,7 +528,7 @@ def add_custom_tags_to_loader(loader: type[SafeLoader]) -> None:
     Args:
         loader (type[SafeLoader]): The YAML loader to add the custom tags to.
     """
-    for tag_class in subclasses_recursive(Tag):
+    for tag_class in Tag.subclasses_recursive():
         try:
             loader.add_constructor(tag_class.TAG, tag_class.construct)
             LOGGER.debug("Added constructor for %s", tag_class.TAG)

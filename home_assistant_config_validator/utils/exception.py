@@ -24,7 +24,7 @@ class UserPCHConfigurationError(ConfigurationError):
     ) -> None:
         """Initialize the error."""
         super().__init__(
-            f"{configuration_type.value} configuration error for package {package}: {message}",
+            f"{configuration_type} configuration error for package {package}: {message}",
         )
 
 
@@ -129,6 +129,7 @@ class JsonPathNotFoundError(NotFoundError):
 
     def __init__(self, path: str) -> None:
         """Initialize the error."""
+        self.path = path
         super().__init__(f"JSON path not found but should be defined: {path!r}")
 
         self.fmt_msg = path
@@ -183,6 +184,16 @@ class ShouldBeEqualError(InvalidConfigurationError):
         v2_str = re.sub(r"\s+", " ", str(v2)).strip()
 
         super().__init__(f'`{f1}: "{v1_str}"` should match `{f2}: "{v2_str}"`')
+
+
+class ShouldExistError(InvalidConfigurationError):
+    """Raised when a field should exist but doesn't."""
+
+    def __init__(self, field: str, exc: JsonPathNotFoundError) -> None:
+        """Initialize the error."""
+        super().__init__(f"`{field}` should exist but doesn't: {exc.path}")
+
+        self.fmt_msg = exc.fmt_msg
 
 
 class ShouldMatchFileNameError(InvalidConfigurationError):

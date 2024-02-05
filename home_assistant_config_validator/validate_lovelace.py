@@ -20,7 +20,6 @@ from home_assistant_config_validator.utils import (
     const,
     format_output,
     load_yaml,
-    subclasses_recursive,
 )
 
 
@@ -105,7 +104,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
 
     imported_files: list[Path] = []
 
-    target_types = tuple(subclasses_recursive(Tag))
+    target_types = tuple(Tag.subclasses_recursive())
 
     traverse_dict(
         lovelace_config,  # type: ignore[arg-type]
@@ -238,7 +237,7 @@ def main() -> None:
     if not all_issues:
         sys.exit(0)
 
-    sys.exit(format_output(all_issues))
+    sys.exit(format_output({"lovelace": all_issues}))
 
 
 if __name__ == "__main__":

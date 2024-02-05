@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Hashable, Iterable
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, TypedDict
@@ -16,7 +16,7 @@ from wg_utilities.functions.json import (
     process_json_object,
 )
 
-from . import const
+from . import Entity, const
 from .exception import (
     InvalidConfigurationError,
     InvalidFieldTypeError,
@@ -162,11 +162,7 @@ def check_known_entity_usages(
 
 
 def format_output(
-    data: (
-        dict[str, dict[Path, list[InvalidConfigurationError]]]
-        | dict[Path, list[InvalidConfigurationError]]
-        | list[InvalidConfigurationError]
-    ),
+    data: dict[str, dict[Path, list[InvalidConfigurationError]]],
     _indent: int = 0,
 ) -> str:
     """Format output for better readability.
@@ -181,33 +177,39 @@ def format_output(
     Raises:
         TypeError: If `data` is not a dict or list
     """
-    output = ""
+    output_lines = []
 
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if not value:
+    for pkg_name, issues in data.items():
+        if not issues:
+            continue
+
+        package_lines = []
+
+        for path, issue_list in issues.items():
+            if not issue_list:
                 continue
 
-            if not _indent:
-                output += "\n"
+            if issue_lines := [
+                f"{'  ' * (_indent + 4)}{type(exc).__name__}: {exc.fmt_msg}"
+                for exc in issue_list
+            ]:
+                package_lines.append(
+                    f"{' ' * (_indent + 2)}{path.relative_to(const.REPO_PATH)}",
+                )
+                package_lines.extend(issue_lines)
 
-            k = key.relative_to(const.REPO_PATH) if isinstance(key, Path) else key
+        if package_lines:
+            output_lines.append(f"{' ' * _indent}{pkg_name}")
+            output_lines.extend(package_lines)
 
-            output += f"{' ' * _indent}{k}\n{format_output(value, _indent + 2)}"
-    elif isinstance(data, list):
-        for exc in data:
-            output += f"{'  ' * _indent}{type(exc).__name__}: {exc.fmt_msg}\n"
-    else:
-        raise TypeError(f"Unexpected type {type(data).__name__}")  # noqa: TRY003
-
-    return output
+    return "\n".join(output_lines)
 
 
 NO_DEFAULT = object()
 
 
 def get_json_value(
-    json_obj: JSONObj | JSONArr,
+    json_obj: Entity | JSONObj | JSONArr,
     json_path: str,
     /,
     default: Any = NO_DEFAULT,
@@ -226,6 +228,9 @@ def get_json_value(
     Returns:
         Any: The value at the JSONPath expression
     """
+    if isinstance(json_obj, Entity):
+        json_obj = json_obj.model_dump()
+
     values = [match.value for match in parse_jsonpath(json_path).find(json_obj)]
 
     if not values and default is not NO_DEFAULT:
@@ -249,29 +254,9 @@ def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
     return parse(__jsonpath)
 
 
-@lru_cache
-def subclasses_recursive(
-    cls: type[Hashable],
-) -> tuple[type[Any], ...]:
-    """Get all subclasses of a class recursively.
-
-    Args:
-        cls (type[_CustomTag]): The class to get the subclasses of.
-
-    Returns:
-        list[type[_CustomTag]]: A list of all subclasses of the class.
-    """
-    indirect: list[type[Any]] = []
-    for subclass in (direct := cls.__subclasses__()):
-        indirect.extend(subclasses_recursive(subclass))
-
-    return tuple(direct + indirect)
-
-
 __all__ = [
     "check_known_entity_usages",
     "format_output",
     "parse_jsonpath",
-    "subclasses_recursive",
     "KnownEntityType",
 ]
