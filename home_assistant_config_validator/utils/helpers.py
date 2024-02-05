@@ -42,7 +42,6 @@ KNOWN_SERVICES = {
 
 @lru_cache(maxsize=1)
 def _get_known_entities() -> dict[str, KnownEntityType]:
-    # pylint: disable=import-outside-toplevel
     from home_assistant_config_validator.utils.ha_yaml_loader import load_yaml
 
     known_entities: dict[str, KnownEntityType] = {

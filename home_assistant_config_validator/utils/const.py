@@ -1,6 +1,4 @@
-# pylint: disable=cyclic-import
 """Constants for the configuration validator."""
-
 
 from __future__ import annotations
 

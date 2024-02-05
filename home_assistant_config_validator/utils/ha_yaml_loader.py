@@ -61,7 +61,6 @@ class Tag(ABC, Generic[ResTo]):
         Returns:
             _CustomTag: The constructed custom tag
         """
-        # pylint: disable=too-many-function-args
         return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[arg-type]
 
     @abstractmethod
