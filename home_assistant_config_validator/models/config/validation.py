@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
@@ -28,9 +29,19 @@ from home_assistant_config_validator.utils import (
 from .base import Config, replace_non_alphanumeric
 
 
+class Case(StrEnum):
+    """Enum for the different cases."""
+
+    SNAKE = "snake"
+    KEBAB = "kebab"
+    PASCAL = "pascal"
+    CAMEL = "camel"
+
+
 class ShouldMatchFilepathItem(BaseModel):
     """Type definition for a single item in the `should_match_filepath` list."""
 
+    case: Case | None = None
     separator: str
     prefix: str = ""
     ignore_chars: str = ""
@@ -45,6 +56,66 @@ class ShouldMatchFilepathItem(BaseModel):
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    def get_expected_value(self, file: Path, /, package: Package) -> str:
+        """Get the expected formatted filepath value for the given file."""
+        if self.remove_package_path is True:
+            relative_to = package.get_tag_path(file)
+        elif self.remove_package_path is False:
+            relative_to = const.ENTITIES_DIR
+        else:
+            relative_to = package.tag_paths_highest_common_ancestor
+
+        parts = list(file.with_suffix("").relative_to(relative_to).parts)
+
+        if self.case == Case.SNAKE:
+            parts = [replace_non_alphanumeric(p) for p in parts]
+        elif self.case == Case.KEBAB:
+            parts = [replace_non_alphanumeric(p, replace_with="-") for p in parts]
+        elif self.case is not None:  # Pascal or Camel
+            parts = [
+                "".join(
+                    word.capitalize() for word in replace_non_alphanumeric(p).split("_")
+                )
+                for p in parts
+            ]
+
+            if self.case == Case.CAMEL:
+                parts[0] = parts[0].lower()
+
+        expected_value = self.prefix + self.separator.join(parts)
+
+        if self.separator == " ":
+            expected_value = expected_value.replace("_", " ")
+
+        return expected_value
+
+    def is_correct_case(self, string: str, /) -> bool:
+        """Check if any given string is in the correct case."""
+        if self.case is None:
+            return True
+
+        if self.case == Case.SNAKE:
+            return (string.islower() or string.isdigit()) and all(
+                c.isalpha() or c.isdigit() or c == "_" for c in string
+            )
+
+        if self.case == Case.KEBAB:
+            return (string.islower() or string.isdigit()) and all(
+                c.isalpha() or c.isdigit() or c == "-" for c in string
+            )
+
+        if self.case == Case.PASCAL:
+            return (string[0].isupper() or string.isdigit()) and all(
+                c.isalpha() or c.isdigit() for c in string
+            )
+
+        if self.case == Case.CAMEL:
+            return (string[0].islower() or string.isdigit()) and all(
+                c.isalpha() or c.isdigit() for c in string
+            )
+
+        raise ValueError(self.case)
 
 
 def validate_json_path(path: str, /) -> JSONPath:
@@ -141,21 +212,13 @@ class ValidationConfig(Config):
                 # (e.g. name). If it's required, it'll get picked up in the other checks.
                 continue
 
-    def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
+    def _validate_should_match_filepath(
+        self,
+        entity_yaml: Entity,
+        /,
+    ) -> None:
         for field_path, config in self.should_match_filepath.items():
-            if config.remove_package_path is True:
-                relative_to = self.package.get_tag_path(entity_yaml.file__)
-            elif config.remove_package_path is False:
-                relative_to = const.ENTITIES_DIR
-            else:
-                relative_to = self.package.tag_paths_highest_common_ancestor
-
-            expected_value = config.prefix + config.separator.join(
-                entity_yaml.file__.with_suffix("").relative_to(relative_to).parts,
-            )
-
-            if config.separator == " ":
-                expected_value = expected_value.replace("_", " ")
+            expected_value = config.get_expected_value(entity_yaml.file__, self.package)
 
             try:
                 actual_value = replace_non_alphanumeric(
@@ -174,7 +237,13 @@ class ValidationConfig(Config):
                 if config.separator == " ":
                     actual_value = actual_value.replace("_", " ")
 
-                if expected_value != actual_value:
+                if expected_value != actual_value or (
+                    config.case
+                    and not all(
+                        config.is_correct_case(part)
+                        for part in actual_value.split(config.separator)
+                    )
+                ):
                     self.issues[entity_yaml.file__].append(
                         ShouldMatchFilePathError(
                             field_path,
