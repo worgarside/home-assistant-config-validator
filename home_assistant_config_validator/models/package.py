@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
-from dataclasses import dataclass, field
+from collections.abc import Generator, Iterable
+from dataclasses import dataclass
+from functools import cached_property
 from logging import getLogger
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, ClassVar, Self
 
 from wg_utilities.functions.json import JSONObj, process_json_object
@@ -36,8 +37,9 @@ class Package:
 
     pkg_name: str
     name: str
-    root_path: Path
-    entities: list[Entity] = field(default_factory=list)
+    root_file: Path
+    tag_paths: Iterable[PurePath]
+    entities: list[Entity]
 
     def __post_init__(self: Self) -> None:
         """Add the instance to the instances dict."""
@@ -49,11 +51,32 @@ class Package:
                 f"Can't have multiple packages with same name ({self.pkg_name})",
             )
 
-    @classmethod
-    def get_packages(cls) -> Generator[Package, None, None]:
-        """Generate all packages."""
-        for pkg_file in sorted(const.PACKAGES_DIR.glob("*.yaml")):
-            yield cls.by_name(pkg_file.stem)
+    def get_tag_path(self, entity_path: Path) -> Path:
+        """Get the path from the tag which includes this entity."""
+        ancestors = [
+            self.root_file.parent.joinpath(path).resolve()
+            for path in self.tag_paths
+            if entity_path.is_relative_to(path)
+        ]
+
+        return sorted(ancestors, key=lambda x: len(x.parts), reverse=True)[0]
+
+    @cached_property
+    def tag_paths_highest_common_ancestor(self) -> Path:
+        """Get the highest common ancestor of all tag paths."""
+        parts = [
+            self.root_file.parent.joinpath(p).resolve().parts for p in self.tag_paths
+        ]
+
+        common_parts = []
+        zipped_parts: tuple[str, ...]
+        for zipped_parts in zip(*parts):
+            if len(set(zipped_parts)) != 1:
+                break
+
+            common_parts.append(zipped_parts[0])
+
+        return Path(*common_parts)
 
     @classmethod
     def by_name(cls, name: str, /, *, allow_creation: bool = True) -> Package:
@@ -70,6 +93,12 @@ class Package:
             )
 
         raise PackageNotFoundError(const.PACKAGES_DIR.joinpath(name))
+
+    @classmethod
+    def get_packages(cls) -> Generator[Package, None, None]:
+        """Generate all packages."""
+        for pkg_file in sorted(const.PACKAGES_DIR.glob("*.yaml")):
+            yield cls.by_name(pkg_file.stem)
 
     @classmethod
     def parse_file(cls, file: Path) -> Package:
@@ -93,15 +122,24 @@ class Package:
                 name,
             )
         else:
-            raise PackageDefinitionError(file, f"invalid split keys {key_set!r}")
+            raise PackageDefinitionError(
+                file,
+                f"invalid split keys { {str(k).split()[0] for k in package_config} }",
+            )
 
         entities: list[Entity] = []
+        tag_paths: list[PurePath] = []
 
         def _add_to_entities_and_resolve(
             tag: TagWithPath[Any, Any],
-            **_: Any,
+            **_: str | int | None,
         ) -> Any:
             entities.extend(tag.entities)
+
+            # Only save tags from the package file
+            if tag.file == file:
+                tag_paths.append(tag.absolute_path)
+
             return tag.resolve(resolve_tags=False)
 
         process_json_object(
@@ -113,7 +151,13 @@ class Package:
         )
 
         if (pkg := cls.INSTANCES.get(file.stem)) is None:
-            return cls(pkg_name=file.stem, name=name, entities=entities, root_path=file)
+            return cls(
+                pkg_name=file.stem,
+                name=name,
+                entities=entities,
+                root_file=file,
+                tag_paths=tag_paths,
+            )
 
         pkg.entities.extend(entities)
 

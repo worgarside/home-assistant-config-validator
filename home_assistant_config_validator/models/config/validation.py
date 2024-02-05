@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal, Self
+from typing import Annotated, ClassVar, Literal
 
 from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
@@ -34,22 +34,17 @@ class ShouldMatchFilepathItem(BaseModel):
     separator: str
     prefix: str = ""
     ignore_chars: str = ""
-    include_domain_dir: bool = False
-    remove_sensor_prefix: bool = False
+    remove_package_path: bool | None = Field(
+        None,
+        description="Explicitly remove the package path from the file path for validation. The "
+        "behaviour varies depending on the number of tags in the file: if true, the expected "
+        "value will be relative to the path of the tag which the entity belongs; if false, the "
+        "expected value will be relative to the entities directory; if null, the expected value "
+        "will be relative to the highest common ancestor of the tag paths. Fioles with a single "
+        "tag will exhibit the same behaviour for `True` and `None`.",
+    )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    @model_validator(mode="after")
-    def validate_config(self) -> Self:
-        """Validate the configuration for a `should_match_filepath` item."""
-        if self.include_domain_dir and self.remove_sensor_prefix:
-            raise UserPCHConfigurationError(
-                const.ConfigurationType.VALIDATION,
-                "unknown",
-                "include_domain_dir and remove_sensor_prefix are mutually exclusive",
-            )
-
-        return self
 
 
 def validate_json_path(path: str, /) -> JSONPath:
@@ -147,37 +142,25 @@ class ValidationConfig(Config):
                 continue
 
     def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
-        for field_path, smfp_config in self.should_match_filepath.items():
-            if smfp_config.include_domain_dir:
-                filepath_parts = (
-                    entity_yaml.file__.with_suffix("")
-                    .relative_to(const.ENTITIES_DIR)
-                    .parts
-                )
+        for field_path, config in self.should_match_filepath.items():
+            if config.remove_package_path is True:
+                relative_to = self.package.get_tag_path(entity_yaml.file__)
+            elif config.remove_package_path is False:
+                relative_to = const.ENTITIES_DIR
             else:
-                filepath_parts = (
-                    entity_yaml.file__.with_suffix("")
-                    .relative_to(const.ENTITIES_DIR / self.package.name)
-                    .parts
-                )
+                relative_to = self.package.tag_paths_highest_common_ancestor
 
-            if smfp_config.remove_sensor_prefix and filepath_parts[0] in (
-                "binary_sensor",
-                "sensor",
-            ):
-                filepath_parts = filepath_parts[1:]
-
-            expected_value = smfp_config.prefix + smfp_config.separator.join(
-                filepath_parts,
+            expected_value = config.prefix + config.separator.join(
+                entity_yaml.file__.with_suffix("").relative_to(relative_to).parts,
             )
 
-            if smfp_config.separator == " ":
+            if config.separator == " ":
                 expected_value = expected_value.replace("_", " ")
 
             try:
                 actual_value = replace_non_alphanumeric(
                     get_json_value(entity_yaml, field_path, valid_type=str),
-                    ignore_chars=smfp_config.separator.replace(" ", ""),
+                    ignore_chars=config.separator.replace(" ", ""),
                 )
             except InvalidConfigurationError:
                 self.issues[entity_yaml.file__].append(
@@ -188,7 +171,7 @@ class ValidationConfig(Config):
                     ),
                 )
             else:
-                if smfp_config.separator == " ":
+                if config.separator == " ":
                     actual_value = actual_value.replace("_", " ")
 
                 if expected_value != actual_value:

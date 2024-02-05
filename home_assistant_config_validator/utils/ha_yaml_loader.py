@@ -223,7 +223,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
                 or not value.file
                 or value.file == const.NULL_PATH
             ):
-                value.file = file
+                value.file = file.resolve(strict=True)
 
             return value
 
