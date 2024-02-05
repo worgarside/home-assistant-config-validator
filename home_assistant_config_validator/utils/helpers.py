@@ -6,15 +6,18 @@ import re
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Final, Literal, TypedDict, TypeVar, overload
 
 from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
     JSONArr,
     JSONObj,
+    JSONVal,
     process_json_object,
 )
+
+from home_assistant_config_validator.models import JSONPathStr
 
 from . import Entity, const
 from .exception import (
@@ -205,16 +208,28 @@ def format_output(
     return "\n".join(output_lines)
 
 
-NO_DEFAULT = object()
+NO_DEFAULT: Final[object] = object()
 
+G = TypeVar("G")
+
+@overload
+def get_json_value(
+    json_obj: Entity | JSONObj | JSONArr,
+    json_path: str,
+    /,
+    default: JSONVal,
+    valid_type: Literal[None] = ...,
+) -> JSONVal:
+    ...
+    
 
 def get_json_value(
     json_obj: Entity | JSONObj | JSONArr,
     json_path: str,
     /,
-    default: Any = NO_DEFAULT,
-    valid_type: type[Any] = object,
-) -> Any:
+    default: JSONVal = NO_DEFAULT,
+    valid_type: type[G] | None = None,
+) -> G | JSONVal:
     """Get a value from a JSON object using a JSONPath expression.
 
     Args:
@@ -231,7 +246,9 @@ def get_json_value(
     if isinstance(json_obj, Entity):
         json_obj = json_obj.model_dump()
 
-    values = [match.value for match in parse_jsonpath(json_path).find(json_obj)]
+    values: JSONArr = [
+        match.value for match in parse_jsonpath(json_path).find(json_obj)
+    ]
 
     if not values and default is not NO_DEFAULT:
         return default
@@ -239,13 +256,52 @@ def get_json_value(
     if not values:
         raise JsonPathNotFoundError(json_path)
 
-    if not all(isinstance(value, valid_type) for value in values):
+    if valid_type is not None and not all(
+        isinstance(value, valid_type) for value in values
+    ):
         raise InvalidFieldTypeError(json_path, values, valid_type)
 
     if len(values) == 1:
         return values[0]
 
     return values
+
+
+S = TypeVar("S", Entity, JSONObj, JSONArr)
+
+
+def set_json_value(
+    json_obj: S,
+    json_path: JSONPathStr,
+    value: JSONVal,
+    /,
+    *,
+    allow_create: bool = False,
+) -> S:
+    """Set a value in a JSON object using a JSONPath expression.
+
+    Args:
+        json_obj (JSONObj | JSONArr): The JSON object to search
+        json_path (str): The JSONPath expression
+        value (Any): The value to set
+
+    Returns:
+        JSONObj | JSONArr: The updated JSON object
+    """
+    if is_entity := isinstance(json_obj, Entity):
+        entity_file = json_obj.file__
+        json_obj = json_obj.model_dump()  # type: ignore[assignment]
+
+    if allow_create:
+        parse_jsonpath(json_path).update_or_create(json_obj, value)
+    else:
+        parse_jsonpath(json_path).update(json_obj, value)
+
+    if is_entity:
+        json_obj["file__"] = entity_file  # type: ignore[index]
+        return Entity.model_validate(json_obj)  # type: ignore[return-value]
+
+    return json_obj
 
 
 @lru_cache

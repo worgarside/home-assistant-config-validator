@@ -40,12 +40,21 @@ parser.add_argument(
     default=REPO_PATH / "configuration.yaml",
 )
 
+parser.add_argument(
+    "-f",
+    "--fix",
+    action="store_true",
+    help="Automatically fix applicable values.",
+    default=getenv("AUTOFIX", "0") == "1",
+)
+
 args, _ = parser.parse_known_args()
 
 
 PCH_CONFIG: Path = args.pch_config_path
 VALIDATE_ALL_PACKAGES: bool = args.validate_all
 HA_CONFIG: Path = args.ha_config_path
+AUTOFIX: bool = args.fix
 
 ENTITIES_DIR: Final[Path] = REPO_PATH / "entities"
 PACKAGES_DIR: Final[Path] = REPO_PATH / "integrations"

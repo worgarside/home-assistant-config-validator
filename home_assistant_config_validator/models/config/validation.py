@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal
+from typing import ClassVar, Literal
 
-from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
-from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from home_assistant_config_validator.models import Package
+from home_assistant_config_validator.models import JSONPathStr, Package
 from home_assistant_config_validator.utils import (
     Entity,
     InvalidConfigurationError,
@@ -20,7 +18,6 @@ from home_assistant_config_validator.utils import (
     ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
-    UserPCHConfigurationError,
     check_known_entity_usages,
     const,
     get_json_value,
@@ -116,23 +113,6 @@ class ShouldMatchFilepathItem(BaseModel):
             )
 
         raise ValueError(self.case)
-
-
-def validate_json_path(path: str, /) -> JSONPath:
-    """Validate a JSONPath string."""
-    try:
-        parse(path)
-    except JsonPathParserError:
-        raise UserPCHConfigurationError(
-            const.ConfigurationType.VALIDATION,
-            "unknown",
-            f"Invalid JSONPath: {path}",
-        ) from None
-
-    return path
-
-
-JSONPathStr = Annotated[str, AfterValidator(validate_json_path)]
 
 
 class ValidationConfig(Config):

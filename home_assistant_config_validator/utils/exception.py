@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from home_assistant_config_validator.utils import const
+from . import const
 
 
 class ConfigurationError(Exception):
