@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from argparse import ArgumentParser
 from enum import StrEnum
 from os import getenv
@@ -53,6 +54,8 @@ LOVELACE_DIR: Final[Path] = REPO_PATH / "lovelace"
 LOVELACE_ROOT_FILE: Final[Path] = REPO_PATH / "ui-lovelace.yaml"
 
 NULL_PATH: Final[Path] = Path("/dev/null")
+
+ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z_]+\.?[a-z_]+$")
 
 
 class ConfigurationType(StrEnum):
