@@ -6,21 +6,25 @@ import re
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Annotated, Final, Literal, TypedDict, TypeVar, overload
 
 from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
+from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
+from pydantic import AfterValidator
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
     JSONArr,
     JSONObj,
+    JSONVal,
     process_json_object,
 )
 
-from . import Entity, const
+from . import Entity, const, load_yaml
 from .exception import (
     InvalidConfigurationError,
     InvalidFieldTypeError,
     JsonPathNotFoundError,
+    UserPCHConfigurationError,
 )
 
 
@@ -42,7 +46,6 @@ KNOWN_SERVICES = {
 
 @lru_cache(maxsize=1)
 def _get_known_entities() -> dict[str, KnownEntityType]:
-    from home_assistant_config_validator.utils.ha_yaml_loader import load_yaml
 
     known_entities: dict[str, KnownEntityType] = {
         package: {
@@ -205,21 +208,60 @@ def format_output(
     return "\n".join(output_lines)
 
 
-NO_DEFAULT = object()
+@lru_cache
+def _validate_json_path(path: str, /) -> JSONPathStr:
+    """Validate a JSONPath string."""
+    try:
+        parse(path)
+    except JsonPathParserError:
+        raise UserPCHConfigurationError(
+            const.ConfigurationType.VALIDATION,
+            "unknown",
+            f"Invalid JSONPath: {path}",
+        ) from None
+
+    return path
+
+
+JSONPathStr = Annotated[str, AfterValidator(_validate_json_path)]
+
+NO_DEFAULT: Final[object] = object()
+
+G = TypeVar("G")
+
+
+@overload
+def get_json_value(
+    json_obj: Entity,
+    json_path: JSONPathStr,
+    /,
+    valid_type: Literal[None] = None,
+    default: JSONVal = ...,
+) -> JSONVal: ...
+
+
+@overload
+def get_json_value(
+    json_obj: Entity | JSONObj | JSONArr,
+    json_path: JSONPathStr,
+    /,
+    valid_type: type[G],
+    default: JSONVal = NO_DEFAULT,
+) -> G: ...
 
 
 def get_json_value(
     json_obj: Entity | JSONObj | JSONArr,
-    json_path: str,
+    json_path: JSONPathStr,
     /,
-    default: Any = NO_DEFAULT,
-    valid_type: type[Any] = object,
-) -> Any:
+    valid_type: type[G] | None = None,
+    default: JSONVal = NO_DEFAULT,
+) -> G | JSONVal:
     """Get a value from a JSON object using a JSONPath expression.
 
     Args:
         json_obj (JSONObj | JSONArr): The JSON object to search
-        json_path (str): The JSONPath expression
+        json_path (JSONPathStr): The JSONPath expression
         default (Any, optional): The default value to return if the path is not found.
             Defaults to None.
         valid_type (type[Any], optional): The type of the value to return. Defaults to
@@ -228,18 +270,22 @@ def get_json_value(
     Returns:
         Any: The value at the JSONPath expression
     """
+    values: JSONArr = [
+        match.value for match in parse_jsonpath(json_path).find(json_obj)
+    ]
+
     if isinstance(json_obj, Entity):
         json_obj = json_obj.model_dump()
 
-    values = [match.value for match in parse_jsonpath(json_path).find(json_obj)]
-
-    if not values and default is not NO_DEFAULT:
-        return default
-
     if not values:
+        if default is not NO_DEFAULT:
+            return default
+
         raise JsonPathNotFoundError(json_path)
 
-    if not all(isinstance(value, valid_type) for value in values):
+    if valid_type is not None and not all(
+        isinstance(value, valid_type) for value in values
+    ):
         raise InvalidFieldTypeError(json_path, values, valid_type)
 
     if len(values) == 1:
@@ -248,9 +294,55 @@ def get_json_value(
     return values
 
 
+S = TypeVar("S", Entity, JSONObj, JSONArr)
+
+
+def set_json_value(
+    json_obj: S,
+    json_path_str: JSONPathStr,
+    value: JSONVal,
+    /,
+    *,
+    allow_create: bool = False,
+) -> S:
+    """Set a value in a JSON object using a JSONPath expression.
+
+    Args:
+        json_obj (JSONObj | JSONArr): The JSON object to search
+        json_path_str (str): The JSONPath expression
+        value (Any): The value to set
+        allow_create (bool, optional): Whether to allow creating the path if it doesn't
+            exist. Defaults to False.
+
+    Returns:
+        JSONObj | JSONArr: The updated JSON object
+    """
+    entity_file = None
+    json_path = parse_jsonpath(json_path_str)
+
+    if is_entity := isinstance(json_obj, Entity):
+        entity_file = json_obj.file__
+        json_obj = json_obj.model_dump()  # type: ignore[assignment]
+
+    if allow_create:
+        json_path.update_or_create(json_obj, value)
+    else:
+        json_path.update(json_obj, value)
+
+    if is_entity:
+        json_obj["file__"] = entity_file  # type: ignore[index]
+        return Entity.model_validate(json_obj)  # type: ignore[return-value]
+
+    return json_obj
+
+
 @lru_cache
 def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
-    """Parse a JSONPath expression."""
+    """Parse a JSONPath expression.
+
+    This is just to cache parsed paths.
+    """
+    _validate_json_path(__jsonpath)
     return parse(__jsonpath)
 
 

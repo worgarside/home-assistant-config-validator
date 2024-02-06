@@ -23,6 +23,7 @@ from .exception import (
 )
 from .ha_yaml_loader import Entity, Secret, Tag, TagWithPath, load_yaml
 from .helpers import (
+    JSONPathStr,
     KnownEntityType,
     check_known_entity_usages,
     format_output,
@@ -34,6 +35,7 @@ __all__ = [
     "const",
     "load_yaml",
     "Entity",
+    "JSONPathStr",
     "ConfigurationError",
     "DeclutteringTemplateNotFoundError",
     "UserPCHConfigurationError",
