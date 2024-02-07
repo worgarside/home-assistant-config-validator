@@ -253,7 +253,7 @@ class ValidationConfig(Config):
                     check_known_entity_usages(
                         entity.model_dump(),
                         entity_keys=("entity_id", "service"),
-                    )
+                    ),
                 )
 
                 self._validate_should_be_equal(entity)
