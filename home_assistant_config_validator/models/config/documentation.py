@@ -6,7 +6,12 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
-from home_assistant_config_validator.utils import Entity, const, parse_jsonpath
+from home_assistant_config_validator.utils import (
+    Entity,
+    JSONPathStr,
+    const,
+    parse_jsonpath,
+)
 
 from .base import Config
 
@@ -22,7 +27,7 @@ class DocumentationConfig(Config):
     name: str = Field(default="name")
     id: str = Field(default="id")
 
-    extra: list[str] = Field(default_factory=list)
+    extra: list[JSONPathStr] = Field(default_factory=list)
 
     def get_description(self, entity: Entity, /) -> Any:
         """Return the description of the entity."""
