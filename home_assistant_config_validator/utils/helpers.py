@@ -252,7 +252,7 @@ def get_json_value(
 
 def get_json_value(
     json_obj: Entity | JSONObj | JSONArr,
-    json_path: JSONPathStr,
+    json_path_str: JSONPathStr,
     /,
     valid_type: type[G] | None = None,
     default: JSONVal = NO_DEFAULT,
@@ -261,7 +261,7 @@ def get_json_value(
 
     Args:
         json_obj (JSONObj | JSONArr): The JSON object to search
-        json_path (JSONPathStr): The JSONPath expression
+        json_path_str (JSONPathStr): The JSONPath expression
         default (Any, optional): The default value to return if the path is not found.
             Defaults to None.
         valid_type (type[Any], optional): The type of the value to return. Defaults to
@@ -270,9 +270,9 @@ def get_json_value(
     Returns:
         Any: The value at the JSONPath expression
     """
-    values: JSONArr = [
-        match.value for match in parse_jsonpath(json_path).find(json_obj)
-    ]
+    json_path = parse_jsonpath(json_path_str)
+
+    values: JSONArr = [match.value for match in json_path.find(json_obj)]
 
     if isinstance(json_obj, Entity):
         json_obj = json_obj.model_dump()
@@ -281,12 +281,12 @@ def get_json_value(
         if default is not NO_DEFAULT:
             return default
 
-        raise JsonPathNotFoundError(json_path)
+        raise JsonPathNotFoundError(json_path_str)
 
     if valid_type is not None and not all(
         isinstance(value, valid_type) for value in values
     ):
-        raise InvalidFieldTypeError(json_path, values, valid_type)
+        raise InvalidFieldTypeError(json_path_str, values, valid_type)
 
     if len(values) == 1:
         return values[0]
