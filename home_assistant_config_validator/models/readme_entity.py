@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from home_assistant_config_validator.models.config import DocumentationConfig
-from home_assistant_config_validator.utils import Entity, Secret, const
-from home_assistant_config_validator.utils.helpers import get_json_value
+from home_assistant_config_validator.utils import Entity, Secret, const, get_json_value
 
 from .package import Package
 

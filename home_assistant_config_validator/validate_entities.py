@@ -31,7 +31,7 @@ def main() -> None:
     if not all_issues:
         sys.exit(0)
 
-    sys.exit(format_output(all_issues))
+    print(format_output(all_issues))
 
 
 if __name__ == "__main__":
