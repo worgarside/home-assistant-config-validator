@@ -11,9 +11,9 @@ from re import escape, sub
 from typing import ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
+from ruamel.yaml import YAML
 from wg_utilities.functions.json import JSONObj
 from wg_utilities.loggers import add_stream_handler
-from yaml import safe_load
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, const
@@ -120,6 +120,6 @@ def _load_user_pch_configuration() -> dict[str, dict[const.ConfigurationType, JS
         return loads(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
 
     if const.PCH_CONFIG.suffix in (".yaml", ".yml"):
-        return safe_load(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+        return YAML(typ="safe").load(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
 
     raise ValueError(const.PCH_CONFIG.suffix)
