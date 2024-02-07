@@ -6,11 +6,13 @@ import re
 from collections.abc import Generator
 from dataclasses import dataclass
 from functools import cached_property
+from json import dumps
 from pathlib import Path
 from typing import Any
 
 from home_assistant_config_validator.models.config import DocumentationConfig
 from home_assistant_config_validator.utils import Entity, Secret, const
+from home_assistant_config_validator.utils.helpers import get_json_value
 
 from .package import Package
 
@@ -34,7 +36,7 @@ class ReadmeEntity:
 
     @staticmethod
     def markdown_format(
-        __value: Any,
+        __v: Any,
         /,
         *,
         target_url: str | None = None,
@@ -42,22 +44,23 @@ class ReadmeEntity:
         block_quote: bool = False,
     ) -> str:
         """Format a string for markdown."""
-        __value = (
-            str(__value).lower()
-            if isinstance(__value, bool)
-            else str(__value).strip(" `")
-        )
+        if isinstance(__v, (dict, list, bool)):
+            __v = dumps(__v, indent=2)
+            code = True
 
-        if code or re.fullmatch(r"^[a-z_]+\.?[a-z_]+$", __value):
-            __value = f"`{__value or ' '}`"
+        if code or (isinstance(__v, str) and const.ENTITY_ID_PATTERN.fullmatch(__v)):
+            typ = type(__v)
+            __v = str(__v).strip(" `")
+
+            __v = f"\n```{typ.__name__}\n{__v}\n```" if "\n" in __v else f"`{__v}`"
 
         if target_url:
-            __value = f"[{__value}]({target_url})"
+            __v = f"[{__v}]({target_url})"
 
         if block_quote:
-            __value = f"> {__value}"
+            __v = f"> {__v}"
 
-        return str(__value)
+        return str(__v)
 
     @property
     def entity_id(self) -> str:
@@ -88,11 +91,11 @@ class ReadmeEntity:
             key = re.sub(
                 r"(^|\s)ID(\s|$)",
                 r"\1ID\2",
-                field.replace("_", " ").title(),
+                field.split(".")[-1].replace("_", " ").title(),
                 flags=re.IGNORECASE,
             )
 
-            if not (val := self.entity.get(field)):
+            if not (val := get_json_value(self.entity, field, default=None)):
                 yield f"- {key}:"
                 continue
 
@@ -106,12 +109,11 @@ class ReadmeEntity:
                     target_url=url,
                     code=True,
                 )
-            elif (
-                key.endswith("ID")
-                or key.casefold() == "command"
-                or isinstance(val, bool)
-            ):
-                val = self.markdown_format(val, code=True)
+
+            val = self.markdown_format(
+                val,
+                code=(key.endswith("ID") or key.casefold() == "command"),
+            )
 
             yield f"- {key}: {val!s}"
         yield f"  File: {self.file}"
