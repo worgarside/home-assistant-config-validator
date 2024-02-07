@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -133,7 +134,9 @@ class ValidationConfig(Config):
         default_factory=dict,
     )
 
-    issues: dict[Path, list[InvalidConfigurationError]] = Field(default_factory=dict)
+    issues: dict[Path, list[InvalidConfigurationError]] = Field(
+        default_factory=lambda: defaultdict(list),
+    )
 
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for field_name_1, field_name_2 in self.should_be_equal:
@@ -244,15 +247,17 @@ class ValidationConfig(Config):
         Invalid files are added to the `self._package_issues` dict, with the file path
         as the key and a list of exceptions as the value.
         """
-        for entity_yaml in self.package.entities:
+        for entity_genr in self.package.entity_generators:
+            for entity in entity_genr:
+                self.issues[entity.file__].extend(
+                    check_known_entity_usages(
+                        entity.model_dump(),
+                        entity_keys=("entity_id", "service"),
+                    ),
+                )
 
-            self.issues[entity_yaml.file__] = check_known_entity_usages(
-                entity_yaml.model_dump(),
-                entity_keys=("entity_id", "service"),
-            )
-
-            self._validate_should_be_equal(entity_yaml)
-            self._validate_should_exist(entity_yaml)
-            self._validate_should_match_filename(entity_yaml)
-            self._validate_should_match_filepath(entity_yaml)
-            self._validate_should_be_hardcoded(entity_yaml)
+                self._validate_should_be_equal(entity)
+                self._validate_should_exist(entity)
+                self._validate_should_match_filename(entity)
+                self._validate_should_match_filepath(entity)
+                self._validate_should_be_hardcoded(entity)

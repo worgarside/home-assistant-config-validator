@@ -43,6 +43,9 @@ class Entity(BaseModel):
         return getattr(self, key, default)
 
 
+EntityGenerator = Generator[Entity, None, None]
+
+
 @dataclass
 class Tag(ABC, Generic[ResTo]):
     RESOLVES_TO: ClassVar[type]
@@ -236,11 +239,10 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_entities_from_file_content(
+    def _get_entities_from_file(
         self,
         file: Path,
-        file_content: F,
-    ) -> Generator[Entity, None, None]:
+    ) -> EntityGenerator:
         """Get the entities from the file content."""
         raise NotImplementedError
 
@@ -287,25 +289,15 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         return data
 
     @property
-    def entities(self) -> Generator[Entity, None, None]:
-        for file in sorted(self.absolute_path.rglob("*.yaml")):
-            file_content: F = load_yaml(
-                file,
-                resolve_tags=False,
-                validate_content_type=self.FILE_CONTENT_TYPE,
-            )
-
-            if not isinstance(file_content, self.FILE_CONTENT_TYPE):
-                raise TypeError(  # noqa: TRY003
-                    f"File {file} contains a {type(file_content)}, but"
-                    f"`{self.TAG}` expects each file to contain a {self.FILE_CONTENT_TYPE}",
-                )
-
-            yield from self._get_entities_from_file_content(file, file_content)
+    def absolute_path(self) -> Path:
+        """Get the resolved path for this tag."""
+        return (self.file.parent / self.path).resolve()
 
     @property
-    def absolute_path(self) -> Path:
-        return (self.file.parent / self.path).resolve()
+    def entity_generator(self) -> EntityGenerator:
+        """Get the entities from the tag."""
+        for file in sorted(self.absolute_path.rglob("*.yaml")):
+            yield from self._get_entities_from_file(file)
 
     def __str__(self) -> str:
         return f"{self.TAG} {self.path.as_posix()}"
@@ -343,11 +335,17 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
         data.append(file_content)
         return data
 
-    def _get_entities_from_file_content(
+    def _get_entities_from_file(
         self,
         file: Path,
-        file_content: JSONObj,
-    ) -> Generator[Entity, None, None]:
+    ) -> EntityGenerator:
+        file_content = load_yaml(
+            file,
+            resolve_tags=False,
+            validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
+        )
+
         file_content["file__"] = file.resolve()
 
         yield Entity.model_validate(file_content)
@@ -382,11 +380,17 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         data.extend(file_content)
         return data
 
-    def _get_entities_from_file_content(
+    def _get_entities_from_file(
         self,
         file: Path,
-        file_content: list[JSONObj],
-    ) -> Generator[Entity, None, None]:
+    ) -> EntityGenerator:
+        file_content: list[JSONObj] = load_yaml(
+            file,
+            resolve_tags=False,
+            validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
+        )
+
         for elem in file_content:
             elem["file__"] = file.resolve()
 
@@ -420,11 +424,16 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
         data.update(file_content)
         return data
 
-    def _get_entities_from_file_content(
+    def _get_entities_from_file(
         self,
         file: Path,
-        file_content: JSONObj,
-    ) -> Generator[Entity, None, None]:
+    ) -> EntityGenerator:
+        file_content = load_yaml(
+            file,
+            resolve_tags=False,
+            validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
+        )
         file_content["file__"] = file.resolve()
         yield Entity.model_validate(file_content)
 
@@ -456,11 +465,16 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         data[file.stem] = file_content
         return data
 
-    def _get_entities_from_file_content(
+    def _get_entities_from_file(
         self,
         file: Path,
-        file_content: JSONObj,
-    ) -> Generator[Entity, None, None]:
+    ) -> EntityGenerator:
+        file_content = load_yaml(
+            file,
+            resolve_tags=False,
+            validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
+        )
         file_content["file__"] = file.resolve()
 
         yield Entity.model_validate(file_content)
@@ -474,6 +488,7 @@ def load_yaml(
     *,
     resolve_tags: bool,
     validate_content_type: type[F] | None = None,
+    isolate_tags_from_files: bool = False,
 ) -> F:
     """Load a YAML file.
 
@@ -483,14 +498,15 @@ def load_yaml(
             Defaults to False.
         validate_content_type (type[F] | None, optional): The type to validate the
             content of the YAML file against. Defaults to None.
+        isolate_tags_from_files (bool, optional): Whether to isolate tags from files.
+            Defaults to False, which will attach a file path to each tag. Setting this
+            to True is not recommended unless you are sure that the tags in the file
+            are not being used elsewhere (or therer aren't any tags).
 
     Returns:
         JSONObj: The content of the YAML file as a JSON object
     """
-    content = cast(
-        F,
-        HAYamlLoader.load(path.read_text()),
-    )
+    content = cast(F, HAYamlLoader.load(path))
 
     if validate_content_type is not None and not issubclass(
         type(content),
@@ -509,7 +525,7 @@ def load_yaml(
             pass_on_fail=False,
             log_op_func_failures=False,
         )
-    else:
+    elif not isolate_tags_from_files:
         process_json_object(  # type: ignore[misc]
             content,
             target_type=TagWithPath,

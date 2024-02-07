@@ -13,7 +13,7 @@ from wg_utilities.functions.json import JSONObj, process_json_object
 from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.utils import (
-    Entity,
+    EntityGenerator,
     PackageDefinitionError,
     PackageNotFoundError,
     TagWithPath,
@@ -39,7 +39,7 @@ class Package:
     name: str
     root_file: Path
     tag_paths: Iterable[PurePath]
-    entities: list[Entity]
+    entity_generators: list[EntityGenerator]
 
     def __post_init__(self: Self) -> None:
         """Add the instance to the instances dict."""
@@ -103,8 +103,6 @@ class Package:
     @classmethod
     def parse_file(cls, file: Path) -> Package:
         """Parse a file from the packages directory."""
-        # TODO add check that the file is in the integs dir
-
         package_config: JSONObj = load_yaml(
             file,
             resolve_tags=False,
@@ -127,25 +125,25 @@ class Package:
                 f"invalid split keys { {str(k).split()[0] for k in package_config} }",
             )
 
-        entities: list[Entity] = []
+        entity_generators: list[EntityGenerator] = []
         tag_paths: list[PurePath] = []
 
-        def _add_to_entities_and_resolve(
+        def _get_entity_generators(
             tag: TagWithPath[Any, Any],
             **_: str | int | None,
         ) -> Any:
-            entities.extend(tag.entities)
+            entity_generators.append(tag.entity_generator)
 
             # Only save tags from the package file
             if tag.file == file:
                 tag_paths.append(tag.absolute_path)
 
-            return tag.resolve(resolve_tags=False)
+            return tag
 
         process_json_object(
             package_config,
             target_type=TagWithPath,
-            target_processor_func=_add_to_entities_and_resolve,  # type: ignore[arg-type]
+            target_processor_func=_get_entity_generators,  # type: ignore[arg-type]
             pass_on_fail=False,
             log_op_func_failures=False,
         )
@@ -154,12 +152,12 @@ class Package:
             return cls(
                 pkg_name=file.stem,
                 name=name,
-                entities=entities,
+                entity_generators=entity_generators,
                 root_file=file,
                 tag_paths=tag_paths,
             )
 
-        pkg.entities.extend(entities)
+        pkg.entity_generators.extend(entity_generators)
 
         return pkg
 

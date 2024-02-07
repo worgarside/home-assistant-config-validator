@@ -18,7 +18,7 @@ def main() -> None:
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
-        if not pkg.entities:
+        if not pkg.entity_generators:
             continue
 
         validator = ValidationConfig.get_for_package(pkg)
