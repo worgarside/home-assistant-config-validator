@@ -31,8 +31,9 @@ class ReadmeEntity:
         /,
     ) -> Generator[ReadmeEntity, None, None]:
         """Generate a list of ReadmeEntity instances."""
-        for entity in package.entities:
-            yield cls(entity=entity, package=package)
+        for entity_genr in package.entity_generators:
+            for entity in entity_genr:
+                yield cls(entity=entity, package=package)
 
     @staticmethod
     def markdown_format(

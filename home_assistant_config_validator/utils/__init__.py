@@ -21,7 +21,7 @@ from .exception import (
     UnusedFileError,
     UserPCHConfigurationError,
 )
-from .ha_yaml_loader import Entity, Secret, Tag, TagWithPath, load_yaml
+from .ha_yaml_loader import Entity, EntityGenerator, Secret, Tag, TagWithPath, load_yaml
 from .helpers import (
     JSONPathStr,
     KnownEntityType,
@@ -37,6 +37,7 @@ __all__ = [
     "Entity",
     "JSONPathStr",
     "ConfigurationError",
+    "EntityGenerator",
     "DeclutteringTemplateNotFoundError",
     "UserPCHConfigurationError",
     "HomeAssistantConfigurationError",
