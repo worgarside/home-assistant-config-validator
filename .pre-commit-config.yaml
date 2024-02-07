@@ -96,7 +96,6 @@ repos:
           - --strict
           - --show-error-codes
         additional_dependencies:
-          - deepdiff==6.7.1
           - jsonpath-ng==1.6.1
           - pydantic[mypy]==2.6.1
           - ruamel-yaml==0.18.6
