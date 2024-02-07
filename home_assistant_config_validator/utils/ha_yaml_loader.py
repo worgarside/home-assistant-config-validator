@@ -10,6 +10,7 @@ from pathlib import Path, PurePath
 from typing import Any, ClassVar, Generic, Literal, Self, TypeVar, cast, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
+from ruamel.yaml import YAML, ScalarNode
 from wg_utilities.functions.json import (
     JSONObj,
     JSONVal,
@@ -17,7 +18,6 @@ from wg_utilities.functions.json import (
     process_json_object,
 )
 from wg_utilities.loggers import add_stream_handler
-from yaml import SafeLoader, ScalarNode, load
 
 from . import const
 from .exception import FileContentTypeError
@@ -43,10 +43,6 @@ class Entity(BaseModel):
         return getattr(self, key, default)
 
 
-class HAYamlLoader(SafeLoader):
-    """A YAML loader that supports custom Home Assistant tags."""
-
-
 @dataclass
 class Tag(ABC, Generic[ResTo]):
     RESOLVES_TO: ClassVar[type]
@@ -57,14 +53,14 @@ class Tag(ABC, Generic[ResTo]):
     @classmethod
     def construct(
         cls,
-        loader: SafeLoader,
+        loader: Any,  # XLoader type isn't importable
         node: ScalarNode,
         **kwargs: dict[str, Any],
     ) -> Self:
         """Construct a custom tag from a YAML node.
 
         Args:
-            loader (SafeLoader): The YAML loader
+            loader (Loader): The YAML loader
             node (ScalarNode): The YAML node to construct from
             **kwargs (dict[str, Any]): Additional keyword arguments to pass to the
                 constructor
@@ -72,7 +68,7 @@ class Tag(ABC, Generic[ResTo]):
         Returns:
             _CustomTag: The constructed custom tag
         """
-        return cls(loader.construct_scalar(node), **kwargs)  # type: ignore[arg-type]
+        return cls(loader.construct_scalar(node), **kwargs)
 
     @staticmethod
     def subclasses_recursive(
@@ -470,6 +466,9 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         yield Entity.model_validate(file_content)
 
 
+HAYamlLoader = YAML(typ="rt")
+
+
 def load_yaml(
     path: Path,
     *,
@@ -490,7 +489,7 @@ def load_yaml(
     """
     content = cast(
         F,
-        load(path.read_text(), Loader=HAYamlLoader),  # noqa: S506
+        HAYamlLoader.load(path.read_text()),
     )
 
     if validate_content_type is not None and not issubclass(
@@ -522,15 +521,15 @@ def load_yaml(
     return content
 
 
-def add_custom_tags_to_loader(loader: type[SafeLoader]) -> None:
+def add_custom_tags_to_loader(loader: YAML) -> None:
     """Add all custom tags to a YAML loader.
 
     Args:
-        loader (type[SafeLoader]): The YAML loader to add the custom tags to.
+        loader (YAML): The YAML loader to add the custom tags to.
     """
     for tag_class in Tag.subclasses_recursive():
         try:
-            loader.add_constructor(tag_class.TAG, tag_class.construct)
+            loader.constructor.add_constructor(tag_class.TAG, tag_class.construct)
             LOGGER.debug("Added constructor for %s", tag_class.TAG)
         except AttributeError:
             continue
