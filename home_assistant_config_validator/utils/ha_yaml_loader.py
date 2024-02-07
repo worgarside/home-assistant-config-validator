@@ -343,6 +343,7 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
         )
 
         file_content["file__"] = file.resolve()
@@ -387,6 +388,7 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
         )
 
         for elem in file_content:
@@ -430,6 +432,7 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
         )
         file_content["file__"] = file.resolve()
         yield Entity.model_validate(file_content)
@@ -470,6 +473,7 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
+            isolate_tags_from_files=True,
         )
         file_content["file__"] = file.resolve()
 
@@ -484,6 +488,7 @@ def load_yaml(
     *,
     resolve_tags: bool,
     validate_content_type: type[F] | None = None,
+    isolate_tags_from_files: bool = False,
 ) -> F:
     """Load a YAML file.
 
@@ -493,6 +498,10 @@ def load_yaml(
             Defaults to False.
         validate_content_type (type[F] | None, optional): The type to validate the
             content of the YAML file against. Defaults to None.
+        isolate_tags_from_files (bool, optional): Whether to isolate tags from files.
+            Defaults to False, which will attach a file path to each tag. Setting this
+            to True is not recommended unless you are sure that the tags in the file
+            are not being used elsewhere (or therer aren't any tags).
 
     Returns:
         JSONObj: The content of the YAML file as a JSON object
@@ -516,7 +525,7 @@ def load_yaml(
             pass_on_fail=False,
             log_op_func_failures=False,
         )
-    else:
+    elif not isolate_tags_from_files:
         process_json_object(  # type: ignore[misc]
             content,
             target_type=TagWithPath,
