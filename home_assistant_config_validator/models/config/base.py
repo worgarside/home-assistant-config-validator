@@ -120,6 +120,6 @@ def _load_user_pch_configuration() -> dict[str, dict[const.ConfigurationType, JS
         return loads(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
 
     if const.PCH_CONFIG.suffix in (".yaml", ".yml"):
-        return YAML(typ="safe").load(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+        return YAML(typ="safe").load(const.PCH_CONFIG)["packages"]  # type: ignore[no-any-return]
 
     raise ValueError(const.PCH_CONFIG.suffix)
