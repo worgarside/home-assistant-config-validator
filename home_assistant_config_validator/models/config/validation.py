@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from enum import StrEnum
+from logging import getLogger
 from pathlib import Path
 from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
@@ -26,6 +29,10 @@ from home_assistant_config_validator.utils import (
 )
 
 from .base import Config, replace_non_alphanumeric
+
+LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")
+add_stream_handler(LOGGER)
 
 
 class Case(StrEnum):
@@ -91,7 +98,7 @@ class ShouldMatchFilepathItem(BaseModel):
 
     def is_correct_case(self, string: str, /) -> bool:
         """Check if any given string is in the correct case."""
-        if self.case is None:
+        if self.case is None or not string:
             return True
 
         if self.case == Case.SNAKE:
@@ -156,13 +163,17 @@ class ValidationConfig(Config):
                 self.issues[entity_yaml.file__].append(exc)
 
     def _validate_should_be_hardcoded(self, entity_yaml: Entity, /) -> None:
-        for sbh_field, hardcoded_value in self.should_be_hardcoded.items():
+        for json_path_str, hardcoded_value in self.should_be_hardcoded.items():
             if (
-                field_value := get_json_value(entity_yaml, sbh_field)
+                field_value := get_json_value(
+                    entity_yaml,
+                    json_path_str,
+                    default=const.INEQUAL,
+                )
             ) != hardcoded_value:
                 self.issues[entity_yaml.file__].append(
                     ShouldBeHardcodedError(
-                        sbh_field,
+                        json_path_str,
                         field_value,
                         hardcoded_value,
                     ),
@@ -205,10 +216,11 @@ class ValidationConfig(Config):
             expected_value = config.get_expected_value(entity_yaml.file__, self.package)
 
             try:
-                actual_value = replace_non_alphanumeric(
-                    get_json_value(entity_yaml, field_path, valid_type=str),
-                    ignore_chars=config.separator.replace(" ", ""),
-                )
+                actual_value = get_json_value(
+                    entity_yaml,
+                    field_path,
+                    valid_type=str,
+                ).lower()
             except InvalidConfigurationError:
                 self.issues[entity_yaml.file__].append(
                     ShouldMatchFilePathError(
@@ -218,14 +230,24 @@ class ValidationConfig(Config):
                     ),
                 )
             else:
-                if config.separator == " ":
-                    actual_value = actual_value.replace("_", " ")
+                ignore_chars = [config.separator]
 
-                if expected_value != actual_value or (
+                if config.case == Case.KEBAB:
+                    ignore_chars.append("-")
+                elif config.case == Case.SNAKE:
+                    ignore_chars.append("_")
+
+                normalised_value = replace_non_alphanumeric(
+                    actual_value,
+                    ignore_chars=ignore_chars,
+                    replace_with="",
+                )
+
+                if expected_value != normalised_value or (
                     config.case
                     and not all(
                         config.is_correct_case(part)
-                        for part in actual_value.split(config.separator)
+                        for part in normalised_value.split(config.separator)
                     )
                 ):
                     self.issues[entity_yaml.file__].append(
@@ -256,8 +278,19 @@ class ValidationConfig(Config):
                     ),
                 )
 
-                self._validate_should_be_equal(entity)
-                self._validate_should_exist(entity)
-                self._validate_should_match_filename(entity)
-                self._validate_should_match_filepath(entity)
-                self._validate_should_be_hardcoded(entity)
+                for validator in self.validators:
+                    validator(entity)
+
+                if const.AUTOFIX and self.issues[entity.file__]:
+                    entity.autofix_file_issues(self.issues[entity.file__])
+
+    @property
+    def validators(self) -> tuple[Callable[[Entity], None], ...]:
+        """Get the validation functions for the package."""
+        return (
+            self._validate_should_be_hardcoded,
+            self._validate_should_be_equal,
+            self._validate_should_exist,
+            self._validate_should_match_filename,
+            self._validate_should_match_filepath,
+        )

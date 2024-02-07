@@ -37,7 +37,7 @@ class FileContentError(HomeAssistantConfigurationError):
 
     def __init__(self, file: Path, message: str | None = None) -> None:
         """Initialize the error."""
-        msg = f"Invalid content in file {file}"
+        msg = f"Invalid content in file {file.relative_to(const.REPO_PATH)}"
 
         if message:
             msg += f": {message}"
@@ -56,7 +56,7 @@ class FileContentTypeError(FileContentError):
         key: str | None = None,
     ) -> None:
         """Initialize the error."""
-        msg = f"expected {expected_type}, got {type(content)}"
+        msg = f"expected {expected_type.__name__!r}, got {type(content).__name__!r}"
 
         if key:
             msg += f" for key {key}"
@@ -99,15 +99,34 @@ class InvalidConfigurationError(HomeAssistantConfigurationError):
         if not hasattr(self, "fmt_msg"):
             self.fmt_msg = message
 
+        self.fixed = False
+
+
+class FixableConfigurationError(InvalidConfigurationError):
+    """Raised when a configuration is invalid - but can be auto-fixed."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        json_path_str: str,
+        expected_value: object,
+    ) -> None:
+        """Initialize the error."""
+        super().__init__(message)
+
+        self.json_path_str = json_path_str
+        self.expected_value = expected_value
+
 
 class UnusedFileError(InvalidConfigurationError):
     """Raised when a file is not used."""
 
     def __init__(self, file: Path) -> None:
         """Initialize the error."""
-        super().__init__(f"File not used: {file}")
+        super().__init__(f"File not used: {file.relative_to(const.REPO_PATH)}")
 
-        self.fmt_msg = file.as_posix()
+        self.fmt_msg = file.relative_to(const.REPO_PATH).as_posix()
 
 
 class NotFoundError(InvalidConfigurationError):
@@ -165,13 +184,15 @@ class InvalidFieldValueError(InvalidConfigurationError):
         self.fmt_msg = message
 
 
-class ShouldBeHardcodedError(InvalidConfigurationError):
+class ShouldBeHardcodedError(FixableConfigurationError):
     """Raised when a field should be hardcoded but isn't."""
 
-    def __init__(self, field: str, value: Any, hardcoded_value: Any) -> None:
+    def __init__(self, json_path_str: str, value: Any, hardcoded_value: Any) -> None:
         """Initialize the error."""
         super().__init__(
-            f"`{field}: {value!s}` should be hardcoded as {hardcoded_value!r}",
+            f"`{json_path_str}: {value!s}` should be hardcoded as {hardcoded_value!r}",
+            json_path_str=json_path_str,
+            expected_value=hardcoded_value,
         )
 
 
@@ -196,23 +217,25 @@ class ShouldExistError(InvalidConfigurationError):
         self.fmt_msg = exc.fmt_msg
 
 
-class ShouldMatchFileNameError(InvalidConfigurationError):
+class ShouldMatchFileNameError(FixableConfigurationError):
     """Raised when a field should match the file name but doesn't."""
 
-    def __init__(self, field: str, value: Any, fmt_value: str) -> None:
+    def __init__(self, json_path_str: str, value: Any, fmt_value: str) -> None:
         """Initialize the error."""
         super().__init__(
-            f"`{field}: {value!s}` ({fmt_value=}) should match file name",
+            f"`{json_path_str}: {value!s}` ({fmt_value=}) should match file name",
+            json_path_str=json_path_str,
+            expected_value=fmt_value,
         )
 
 
 class ShouldMatchFilePathError(InvalidConfigurationError):
     """Raised when a field should match the file path but doesn't."""
 
-    def __init__(self, field: str, value: Any, expected_value: str) -> None:
+    def __init__(self, json_path_str: str, value: Any, expected_value: str) -> None:
         """Initialize the error."""
         super().__init__(
-            f"{field}: `{(value)!s}` should match file path `{expected_value!s}`",
+            f"{json_path_str}: `{value!s}` should match file path `{expected_value!s}`",
         )
 
 
