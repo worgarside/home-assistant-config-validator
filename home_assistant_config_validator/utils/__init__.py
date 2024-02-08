@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import const
+from . import args, const
 from .exception import (
     ConfigurationError,
     DeclutteringTemplateNotFoundError,
@@ -37,6 +37,7 @@ from .helpers import KnownEntityType, check_known_entity_usages, format_output
 
 __all__ = [
     "const",
+    "args",
     "load_yaml",
     "Entity",
     "JSONPathStr",

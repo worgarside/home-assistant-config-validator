@@ -23,6 +23,7 @@ from home_assistant_config_validator.utils import (
     ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
+    args,
     check_known_entity_usages,
     const,
     get_json_value,
@@ -281,7 +282,7 @@ class ValidationConfig(Config):
                 for validator in self.validators:
                     validator(entity)
 
-                if const.AUTOFIX and self.issues[entity.file__]:
+                if args.AUTOFIX and self.issues[entity.file__]:
                     entity.autofix_file_issues(self.issues[entity.file__])
 
     @property

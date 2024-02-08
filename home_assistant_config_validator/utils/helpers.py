@@ -47,7 +47,6 @@ KNOWN_SERVICES = {
 
 @lru_cache(maxsize=1)
 def _get_known_entities() -> dict[str, KnownEntityType]:
-
     known_entities: dict[str, KnownEntityType] = {
         package: {
             "names": [
@@ -275,7 +274,7 @@ def format_output(
     )
 
     if issue_count["fixed"]:
-        summary_line += f", {fmt_str(issue_count['fixed'], 'bold', 'green')} fixed 🎉"
+        summary_line += f", fixed {fmt_str(issue_count['fixed'], 'bold', 'green')} 🎉"
 
     if issue_count["fixable"]:
         summary_line += f"\n{fixable_indicator} {fmt_str(issue_count['fixable'], 'bold', 'green')} fixable with the `--fix` option"  # noqa: E501

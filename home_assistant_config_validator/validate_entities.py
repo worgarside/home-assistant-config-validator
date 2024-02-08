@@ -9,12 +9,15 @@ from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.models.config import ValidationConfig
 from home_assistant_config_validator.utils import (
     InvalidConfigurationError,
+    args,
     format_output,
 )
 
 
 def main() -> None:
     """Validate all entities."""
+    args.parse_arguments()
+
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
