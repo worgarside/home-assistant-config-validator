@@ -1,0 +1,31 @@
+---
+language: en
+
+early_access: true
+
+reviews:
+  request_changes_workflow: true
+
+  high_level_summary: true
+
+  poem: false
+
+  review_status: true
+
+  collapse_walkthrough: true
+
+  path_filters:
+    - '!.vscode'
+
+  path_instructions:
+    - path: '**/*.py'
+      instructions: |
+        Review the Python code against PEP 8 style guide. Highlight any deviations, including issues with variable names,
+        function naming conventions, line length, and use of spaces vs. tabs. Ensure the use of docstrings for functions and classes.
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+chat:
+  auto_reply: true
