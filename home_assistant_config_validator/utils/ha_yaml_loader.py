@@ -77,15 +77,6 @@ class Entity(BaseModel):
         """Get a value from the entity."""
         return getattr(self, key, default)
 
-    def model_copy(
-        self,
-        *,
-        update: dict[str, Any] | None = None,
-        deep: bool = False,
-    ) -> Self:
-        self.modified__ = not deep and bool(update)
-        return super().model_copy(update=update, deep=deep)
-
     def autofix_file_issues(
         self,
         issues: list[InvalidConfigurationError],
@@ -728,17 +719,14 @@ def get_json_value(
     return values
 
 
-S = TypeVar("S", Entity, JSONObj)
-
-
 def set_json_value(
-    obj: S,
+    obj: JSONObj,
     json_path_str: JSONPathStr,
     value: JSONVal,
     /,
     *,
     allow_create: bool = False,
-) -> S:
+) -> JSONObj:
     """Set a value in a JSON object using a JSONPath expression.
 
     Args:
@@ -753,25 +741,12 @@ def set_json_value(
     """
     json_path = parse_jsonpath(json_path_str)
 
-    if isinstance(obj, Entity):
-        LOGGER.debug(
-            "Setting value in %s at %s: %s",
-            obj.file__.relative_to(const.REPO_PATH),
-            json_path_str,
-            value,
-        )
-        json_obj = obj.model_dump()
-    else:
-        LOGGER.debug("Setting value at %s: %s", json_path_str, value)
-        json_obj = obj
+    LOGGER.debug("Setting value at %s: %s", json_path_str, value)
 
     if allow_create:
-        json_path.update_or_create(json_obj, value)
+        json_path.update_or_create(obj, value)
     else:
-        json_path.update(json_obj, value)
-
-    if isinstance(obj, Entity):
-        return obj.model_copy(update=json_obj, deep=False)
+        json_path.update(obj, value)
 
     return obj
 
