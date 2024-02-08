@@ -22,8 +22,5 @@
   "python.testing.autoTestDiscoverOnSaveEnabled": true,
   "launches": {
     "PythonCurrentFile": "Python: Current File"
-  },
-  "files.associations": {
-    "*.yaml": "home-assistant"
   }
 }
