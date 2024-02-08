@@ -21,15 +21,19 @@ from .exception import (
     UnusedFileError,
     UserPCHConfigurationError,
 )
-from .ha_yaml_loader import Entity, EntityGenerator, Secret, Tag, TagWithPath, load_yaml
-from .helpers import (
+from .ha_yaml_loader import (
+    Entity,
+    EntityGenerator,
     JSONPathStr,
-    KnownEntityType,
-    check_known_entity_usages,
-    format_output,
+    Secret,
+    Tag,
+    TagWithPath,
     get_json_value,
+    load_yaml,
     parse_jsonpath,
+    set_json_value,
 )
+from .helpers import KnownEntityType, check_known_entity_usages, format_output
 
 __all__ = [
     "const",
@@ -57,6 +61,7 @@ __all__ = [
     "parse_jsonpath",
     "InvalidConfigurationError",
     "get_json_value",
+    "set_json_value",
     "JsonPathNotFoundError",
     "ShouldBeHardcodedError",
     "ShouldBeEqualError",

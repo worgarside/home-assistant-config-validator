@@ -8,11 +8,10 @@ from dataclasses import dataclass
 from functools import cached_property
 from json import dumps
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from home_assistant_config_validator.models.config import DocumentationConfig
-from home_assistant_config_validator.utils import Entity, Secret, const
-from home_assistant_config_validator.utils.helpers import get_json_value
+from home_assistant_config_validator.utils import Entity, Secret, const, get_json_value
 
 from .package import Package
 
@@ -23,6 +22,8 @@ class ReadmeEntity:
 
     entity: Entity
     package: Package
+
+    MDI_ICON_PATTERN: Final[re.Pattern[str]] = re.compile(r"^mdi:(\w+-?)*\w+$")
 
     @classmethod
     def get_for_package(
@@ -45,15 +46,17 @@ class ReadmeEntity:
         block_quote: bool = False,
     ) -> str:
         """Format a string for markdown."""
+        language = ""
+
         if isinstance(__v, (dict, list, bool)):
+            language = "json"  # Won't matter if __v is a bool
             __v = dumps(__v, indent=2)
             code = True
 
         if code or (isinstance(__v, str) and const.ENTITY_ID_PATTERN.fullmatch(__v)):
-            typ = type(__v)
             __v = str(__v).strip(" `")
 
-            __v = f"\n```{typ.__name__}\n{__v}\n```" if "\n" in __v else f"`{__v}`"
+            __v = f"\n```{language}\n{__v}\n```" if "\n" in __v else f"`{__v}`"
 
         if target_url:
             __v = f"[{__v}]({target_url})"
@@ -103,7 +106,7 @@ class ReadmeEntity:
             if isinstance(val, Secret):
                 val = val.resolve()
 
-            if key.casefold() == "icon":
+            if key.casefold() == "icon" and self.MDI_ICON_PATTERN.fullmatch(str(val)):
                 url = f"https://pictogrammers.com/library/mdi/icon/{str(val).removeprefix('mdi:')}/"
                 val = self.markdown_format(
                     val,

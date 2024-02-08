@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections import defaultdict
+from collections.abc import Iterable
 from functools import lru_cache
 from json import loads
 from logging import getLogger
@@ -25,7 +26,7 @@ add_stream_handler(LOGGER)
 
 def replace_non_alphanumeric(
     string: str,
-    ignore_chars: str = "",
+    ignore_chars: Iterable[str] = "",
     *,
     replace_with: str = "_",
 ) -> str:
@@ -47,17 +48,21 @@ def replace_non_alphanumeric(
     Returns:
         str: The converted string
     """
-    return (
-        # The outer sub replaces double (or more) `replace_with` with a single `replace_with`
-        sub(
+    if not isinstance(ignore_chars, str):
+        ignore_chars = "".join(ignore_chars)
+
+    # Replaces non-alphanumeric characters with `replace_with`
+    formatted = sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", replace_with, string)
+
+    if replace_with:
+        # Replaces double (or more) `replace_with` with a single `replace_with`
+        formatted = sub(
             rf"{escape(replace_with)}{{2,}}",
             replace_with,
-            # The inner sub replaces non-alphanumeric characters with `replace_with`
-            sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", replace_with, string),
+            formatted,
         )
-        .strip(replace_with)
-        .casefold()
-    )
+
+    return formatted.casefold()
 
 
 class Config(BaseModel, ABC):
