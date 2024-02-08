@@ -215,7 +215,7 @@ class ShouldBeEqualError(InvalidConfigurationError):
         v1_str = re.sub(r"\s+", " ", str(v1)).strip()
         v2_str = re.sub(r"\s+", " ", str(v2)).strip()
 
-        super().__init__(f'`{f1}: "{v1_str}"` should match `{f2}: "{v2_str}"`')
+        super().__init__(f"{f1} `{v1_str}` should match {f2}: `{v2_str}`")
 
 
 class ShouldExistError(InvalidConfigurationError):
@@ -225,28 +225,28 @@ class ShouldExistError(InvalidConfigurationError):
         """Initialize the error."""
         super().__init__(f"`{field}` should exist but doesn't: {exc.path}")
 
-        self.fmt_msg = exc.fmt_msg
+        self.fmt_msg = f"`{exc.path}`"
 
 
-class ShouldMatchFileNameError(FixableConfigurationError):
+class ShouldMatchFileNameError(InvalidConfigurationError):
     """Raised when a field should match the file name but doesn't."""
 
     def __init__(self, json_path_str: str, value: Any, fmt_value: str) -> None:
         """Initialize the error."""
         super().__init__(
-            f"`{json_path_str}: {value!s}` ({fmt_value=}) should match file name",
-            json_path_str=json_path_str,
-            expected_value=fmt_value,
+            f"{json_path_str} `{value!s}` ({fmt_value=}) should match file name",
         )
 
 
-class ShouldMatchFilePathError(InvalidConfigurationError):
+class ShouldMatchFilePathError(FixableConfigurationError):
     """Raised when a field should match the file path but doesn't."""
 
     def __init__(self, json_path_str: str, value: Any, expected_value: str) -> None:
         """Initialize the error."""
         super().__init__(
-            f"{json_path_str}: `{value!s}` should match file path `{expected_value!s}`",
+            f"{json_path_str} `{value!s}` != `{expected_value!s}`",
+            json_path_str=json_path_str,
+            expected_value=expected_value,
         )
 
 

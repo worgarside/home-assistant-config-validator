@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, Literal, TypedDict
 
 from wg_utilities.functions.json import (
     InvalidJsonObjectError,
@@ -18,7 +18,11 @@ from wg_utilities.functions.json import (
 from wg_utilities.loggers import add_stream_handler
 
 from . import const, load_yaml
-from .exception import InvalidConfigurationError, InvalidFieldTypeError
+from .exception import (
+    FixableConfigurationError,
+    InvalidConfigurationError,
+    InvalidFieldTypeError,
+)
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -136,8 +140,7 @@ def check_known_entity_usages(
                         " ".join(
                             (
                                 package.replace("_", " ").title(),
-                                dict_key.replace("_", " ").title(),
-                                value,
+                                f"`{value}`",
                                 "is not defined",
                             ),
                         ),
@@ -163,7 +166,6 @@ def check_known_entity_usages(
 
 def format_output(
     data: dict[str, dict[Path, list[InvalidConfigurationError]]],
-    _indent: int = 0,
 ) -> str:
     """Format output for better readability.
 
@@ -177,7 +179,41 @@ def format_output(
     Raises:
         TypeError: If `data` is not a dict or list
     """
+
+    def fmt_str(
+        v: Any,
+        /,
+        *fmt_opts: Literal["bold", "italic", "red", "green", "amber", "blue", "cyan"],
+    ) -> str:
+        s = str(v)
+        codes = {
+            "bold": "\033[1m",
+            "italic": "\033[3m",
+            "red": "\033[31m",
+            "green": "\033[32m",
+            "amber": "\033[33m",
+            "blue": "\033[34m",
+            "cyan": "\033[36m",
+            "reset": "\033[0m",
+        }
+
+        for fmt_opt in fmt_opts:
+            s = f"{codes[fmt_opt]}{s!s}"
+
+        if s.endswith(codes["reset"]):
+            return s
+
+        return f"{s}{codes['reset']}"
+
+    fixable_indicator = f"[{fmt_str('*', 'cyan')}]"
+
     output_lines = []
+    issue_count = {
+        "fixed": 0,
+        "fixable": 0,
+        "total": 0,
+    }
+    name_pad = 0
 
     for pkg_name, issues in data.items():
         if not issues:
@@ -186,24 +222,71 @@ def format_output(
         package_lines = []
 
         for path, issue_list in issues.items():
-            if not issue_list:
-                continue
+            for exc in issue_list:
+                if exc.fixed:
+                    issue_count["fixed"] += 1
+                    issue_count["total"] += 1
+                    continue
 
-            if issue_lines := [
-                f"{'  ' * (_indent + 4)}{type(exc).__name__}: {exc.fmt_msg}"
-                for exc in issue_list
-                if not exc.fixed
-            ]:
-                package_lines.append(
-                    f"{' ' * (_indent + 2)}{path.relative_to(const.REPO_PATH)}",
+                exc_typ = type(exc).__name__.removesuffix("Error")
+
+                if isinstance(exc, FixableConfigurationError):
+                    issue_count["fixable"] += 1
+                    exc_typ = f"{fmt_str(exc_typ, 'amber', 'bold')} {fixable_indicator}"
+                else:
+                    exc_typ = fmt_str(exc_typ, "red", "bold")
+
+                issue_line = " ".join(
+                    (
+                        fmt_str(path.relative_to(const.REPO_PATH), "bold")
+                        + fmt_str(":", "cyan"),
+                        exc_typ,
+                        exc.fmt_msg,
+                    ),
                 )
-                package_lines.extend(issue_lines)
+
+                package_lines.append((pkg_name, issue_line))
+                issue_count["total"] += 1
 
         if package_lines:
-            output_lines.append(f"{' ' * _indent}{pkg_name}")
+            name_pad = max(
+                name_pad,
+                len(pkg_name) + 1,
+            )
             output_lines.extend(package_lines)
 
-    return "\n".join(output_lines)
+    summary_line = fmt_str(
+        " ".join(
+            (
+                "Found",
+                fmt_str(
+                    str(issue_count["total"]),
+                    (
+                        "amber"
+                        if (issue_count["total"] - issue_count["fixed"])
+                        < 10  # noqa: PLR2004
+                        else "red"
+                    ),
+                ),
+                "issues",
+            ),
+        ),
+        "bold",
+    )
+
+    if issue_count["fixed"]:
+        summary_line += f", {fmt_str(issue_count['fixed'], 'bold', 'green')} fixed 🎉"
+
+    if issue_count["fixable"]:
+        summary_line += f"\n{fixable_indicator} {fmt_str(issue_count['fixable'], 'bold', 'green')} fixable with the `--fix` option"  # noqa: E501
+
+    return (
+        "\n".join(
+            f"{fmt_str(f'{pkg_name:<{name_pad}}', 'bold', 'italic', 'blue')} {issue_line}"
+            for pkg_name, issue_line in output_lines
+        )
+        + f"\n\n{summary_line}\n"
+    )
 
 
 __all__ = [
