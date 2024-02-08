@@ -15,7 +15,7 @@ reviews:
   collapse_walkthrough: true
 
   path_filters:
-    - '!.vscode'
+    - '!.vscode/**'
 
   path_instructions:
     - path: '**/*.py'
