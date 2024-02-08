@@ -17,7 +17,7 @@ from wg_utilities.functions.json import JSONObj
 from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.models import Package
-from home_assistant_config_validator.utils import UserPCHConfigurationError, const
+from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -97,7 +97,7 @@ class Config(BaseModel, ABC):
 
         if (
             cls.CONFIGURATION_TYPE == const.ConfigurationType.VALIDATION
-            and const.VALIDATE_ALL_PACKAGES
+            and args.VALIDATE_ALL_PACKAGES
             and package_config is None
         ):
             raise UserPCHConfigurationError(
@@ -111,20 +111,20 @@ class Config(BaseModel, ABC):
 
 @lru_cache
 def _load_user_pch_configuration() -> dict[str, dict[const.ConfigurationType, JSONObj]]:
-    if not const.PCH_CONFIG.exists():
+    if not args.PCH_CONFIG.exists():
         LOGGER.warning(
             "No user PCH configuration found at %s",
-            const.PCH_CONFIG,
+            args.PCH_CONFIG,
         )
         return {}
 
-    if not const.PCH_CONFIG.is_file():
-        raise FileNotFoundError(const.PCH_CONFIG)
+    if not args.PCH_CONFIG.is_file():
+        raise FileNotFoundError(args.PCH_CONFIG)
 
-    if const.PCH_CONFIG.suffix == ".json":
-        return loads(const.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+    if args.PCH_CONFIG.suffix == ".json":
+        return loads(args.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
 
-    if const.PCH_CONFIG.suffix in (".yaml", ".yml"):
-        return YAML(typ="safe").load(const.PCH_CONFIG)["packages"]  # type: ignore[no-any-return]
+    if args.PCH_CONFIG.suffix in (".yaml", ".yml"):
+        return YAML(typ="safe").load(args.PCH_CONFIG)["packages"]  # type: ignore[no-any-return]
 
-    raise ValueError(const.PCH_CONFIG.suffix)
+    raise ValueError(args.PCH_CONFIG.suffix)

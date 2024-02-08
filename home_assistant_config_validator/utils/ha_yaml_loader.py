@@ -67,7 +67,6 @@ HAYamlLoader.indent(mapping=2, sequence=4, offset=2)
 
 
 class Entity(BaseModel):
-
     file__: Path = Field(exclude=True)
     modified__: bool = Field(default=False, exclude=True)
 

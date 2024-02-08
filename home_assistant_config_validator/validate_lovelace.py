@@ -16,6 +16,7 @@ from home_assistant_config_validator.utils import (
     Secret,
     Tag,
     UnusedFileError,
+    args,
     check_known_entity_usages,
     const,
     format_output,
@@ -201,6 +202,8 @@ def validate_decluttering_templates(
 
 def main() -> None:
     """Validate all entities."""
+    args.parse_arguments()
+
     lovelace_config, imported_files = load_lovelace_config()
 
     all_lovelace_files = [
