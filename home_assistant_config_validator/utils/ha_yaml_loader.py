@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
+import shutil
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path, PurePath
+from tempfile import NamedTemporaryFile
 from typing import (
     Annotated,
     Any,
@@ -40,6 +42,7 @@ from wg_utilities.loggers import add_stream_handler
 from . import const
 from .exception import (
     FileContentTypeError,
+    FileIOError,
     FixableConfigurationError,
     InvalidConfigurationError,
     InvalidFieldTypeError,
@@ -97,19 +100,33 @@ class Entity(BaseModel):
             new_file (Path, optional): The new file to dump the entity to. Defaults
                 to None (i.e. the original file).
         """
-        original = HAYamlLoader.load(new_file or self.file__)
+        try:
+            entity_yaml = HAYamlLoader.load(new_file or self.file__)
+        except Exception as exc:
+            raise FileIOError(
+                new_file or self.file__,
+                "load",
+            ) from exc
 
         for issue in issues:
             if isinstance(issue, FixableConfigurationError):
                 set_json_value(
-                    original,
+                    entity_yaml,
                     issue.json_path_str,
                     issue.expected_value,
                     allow_create=True,
                 )
                 issue.fixed = True
 
-        HAYamlLoader.dump(original, new_file or self.file__)
+        try:
+            with NamedTemporaryFile("w", delete=False) as temp_file:
+                HAYamlLoader.dump(entity_yaml, Path(temp_file.name))
+            shutil.move(temp_file.name, new_file or self.file__)
+        except Exception as exc:
+            raise FileIOError(
+                new_file or self.file__,
+                "dump",
+            ) from exc
 
 
 EntityGenerator = Generator[Entity, None, None]
@@ -213,7 +230,6 @@ class Include(Tag[JSONObj | list[JSONObj]]):
         )
 
 
-@HAYamlLoader.register_class
 @dataclass
 class Secret(Tag[str]):
     """Return the value of a secret.

@@ -13,6 +13,17 @@ class ConfigurationError(Exception):
     """Raised when a configuration error is detected."""
 
 
+class FileIOError(IOError):
+    """Raised when a file I/O error is detected."""
+
+    def __init__(self, file_path: Path, operation: str):
+        super().__init__(
+            f"{operation} failed for file: {file_path.relative_to(const.REPO_PATH)}",
+        )
+        self.file_path = file_path
+        self.operation = operation
+
+
 class UserPCHConfigurationError(ConfigurationError):
     """Raised when a error in the pre-commit hook's configuration is detected."""
 
