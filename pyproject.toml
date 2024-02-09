@@ -28,26 +28,6 @@ requires = ["poetry-core"]
 # Tool Configurations #
 #######################
 
-[tool.black]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
-[tool.isort]
-add_imports = ["from __future__ import annotations"]
-profile = "black"
-
 [tool.mypy]
 plugins = "pydantic.mypy"
 
@@ -74,7 +54,6 @@ init_typed = true
 warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
-
 [tool.codespell]
 skip = '*.json,*.csv,*.xml,*.lock'
 
@@ -85,6 +64,7 @@ all = true
 no_gitignore = false
 
 [tool.ruff]
+fix = true
 line-length = 100
 lint.select = [
   "A",   # https://docs.astral.sh/ruff/rules/#flake8-builtins-a
@@ -118,6 +98,7 @@ lint.select = [
   "UP",  # https://docs.astral.sh/ruff/rules/#pyupgrade-up
   "W",   # https://docs.astral.sh/ruff/rules/#warning-w
 ]
+lint.ignore = ["COM812"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
@@ -127,6 +108,9 @@ convention = "google"
 
 [tool.ruff.lint.pylint]
 max-args = 6
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
 
 [tool.vulture]
 min_confidence = 70

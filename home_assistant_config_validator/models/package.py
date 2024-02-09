@@ -64,9 +64,7 @@ class Package:
     @cached_property
     def tag_paths_highest_common_ancestor(self) -> Path:
         """Get the highest common ancestor of all tag paths."""
-        parts = [
-            self.root_file.parent.joinpath(p).resolve().parts for p in self.tag_paths
-        ]
+        parts = [self.root_file.parent.joinpath(p).resolve().parts for p in self.tag_paths]
 
         common_parts = []
         zipped_parts: tuple[str, ...]
@@ -84,10 +82,7 @@ class Package:
         if (self := cls.INSTANCES.get(name)) is not None:
             return self
 
-        if (
-            allow_creation
-            and const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml").is_file()
-        ):
+        if allow_creation and const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml").is_file():
             return cls.parse_file(
                 const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml"),
             )

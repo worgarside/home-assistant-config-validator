@@ -71,8 +71,8 @@ class Config(BaseModel, ABC):
     CONFIGURATION_TYPE: ClassVar[const.ConfigurationType]
     package: Package
 
-    INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = (
-        defaultdict(dict)
+    INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = defaultdict(
+        dict
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -88,9 +88,7 @@ class Config(BaseModel, ABC):
 
         try:
             package_config = (
-                _load_user_pch_configuration()
-                .get(package.pkg_name, {})
-                .get(cls.CONFIGURATION_TYPE)
+                _load_user_pch_configuration().get(package.pkg_name, {}).get(cls.CONFIGURATION_TYPE)
             )
         except Exception as exc:
             raise UserPCHConfigurationError(

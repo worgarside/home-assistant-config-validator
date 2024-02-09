@@ -19,9 +19,9 @@ from .base import Config
 class DocumentationConfig(Config):
     """Dataclass for a package's documentation configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[Literal[const.ConfigurationType.DOCUMENTATION]] = (
-        const.ConfigurationType.DOCUMENTATION
-    )
+    CONFIGURATION_TYPE: ClassVar[
+        Literal[const.ConfigurationType.DOCUMENTATION]
+    ] = const.ConfigurationType.DOCUMENTATION
 
     description: str | None = Field(default=None)
     name: str = Field(default="name")
@@ -31,9 +31,7 @@ class DocumentationConfig(Config):
 
     def get_description(self, entity: Entity, /) -> Any:
         """Return the description of the entity."""
-        if self.description and (
-            match := parse_jsonpath(self.description).find(entity)
-        ):
+        if self.description and (match := parse_jsonpath(self.description).find(entity)):
             return match[0].value
 
         return "*No description provided*"

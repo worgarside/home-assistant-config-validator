@@ -255,9 +255,7 @@ class Secret(Tag[str]):
         fake_secrets = load_yaml(self.FAKE_SECRETS_PATH, resolve_tags=False)
 
         if isinstance(fake_secrets, dict):
-            if (
-                fake_secret := fake_secrets.get(self.secret_id, fallback_value)
-            ) is not None:
+            if (fake_secret := fake_secrets.get(self.secret_id, fallback_value)) is not None:
                 return str(fake_secret)
         else:
             raise TypeError(  # noqa: TRY003
@@ -267,8 +265,7 @@ class Secret(Tag[str]):
             )
 
         raise ValueError(  # noqa: TRY003
-            f"Secret {self.secret_id!r} not found in"
-            f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
+            f"Secret {self.secret_id!r} not found in" f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
         )
 
 
@@ -293,11 +290,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
             list_index: int | None = None,
         ) -> Tag[ResToPath]:
             _ = dict_key, list_index
-            if (
-                not hasattr(value, "file")
-                or not value.file
-                or value.file == const.NULL_PATH
-            ):
+            if not hasattr(value, "file") or not value.file or value.file == const.NULL_PATH:
                 value.file = file.resolve(strict=True)
 
             return value
@@ -664,7 +657,8 @@ def get_json_value(
     /,
     valid_type: Literal[None] = None,
     default: JSONVal = ...,
-) -> JSONVal: ...
+) -> JSONVal:
+    ...
 
 
 @overload
@@ -674,7 +668,8 @@ def get_json_value(
     /,
     valid_type: type[G],
     default: JSONVal = NO_DEFAULT,
-) -> G: ...
+) -> G:
+    ...
 
 
 def get_json_value(
@@ -710,9 +705,7 @@ def get_json_value(
 
         raise JsonPathNotFoundError(json_path_str)
 
-    if valid_type is not None and not all(
-        isinstance(value, valid_type) for value in values
-    ):
+    if valid_type is not None and not all(isinstance(value, valid_type) for value in values):
         raise InvalidFieldTypeError(json_path_str, values, valid_type)
 
     if len(values) == 1:
