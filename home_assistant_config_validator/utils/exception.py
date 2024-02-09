@@ -35,7 +35,7 @@ class UserPCHConfigurationError(ConfigurationError):
     ) -> None:
         """Initialize the error."""
         super().__init__(
-            f"{configuration_type} configuration error for package {package}: {message}",
+            f"{configuration_type} configuration error for package `{package}`: {message}",
         )
 
 

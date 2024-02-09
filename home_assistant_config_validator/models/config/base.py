@@ -86,14 +86,18 @@ class Config(BaseModel, ABC):
         if (pkg := cls.INSTANCES[cls.CONFIGURATION_TYPE].get(package)) is not None:
             return pkg  # type: ignore[return-value]
 
-        package_config = (
-            _load_user_pch_configuration()
-            .get(package.pkg_name, {})
-            .get(cls.CONFIGURATION_TYPE)
-        )
-
-        if package_config is not None and not isinstance(package_config, dict):
-            raise TypeError(type(package_config))
+        try:
+            package_config = (
+                _load_user_pch_configuration()
+                .get(package.pkg_name, {})
+                .get(cls.CONFIGURATION_TYPE)
+            )
+        except Exception as exc:
+            raise UserPCHConfigurationError(
+                cls.CONFIGURATION_TYPE,
+                package.pkg_name,
+                repr(exc),
+            ) from exc
 
         if (
             cls.CONFIGURATION_TYPE == const.ConfigurationType.VALIDATION
