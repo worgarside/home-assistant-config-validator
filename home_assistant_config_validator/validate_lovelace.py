@@ -178,8 +178,7 @@ def validate_decluttering_templates(
 
         if dict_key != "template" or (
             # False positives from actual templates
-            string.lstrip().startswith(("{{", "[["))
-            and string.rstrip().endswith(("}}", "]]"))
+            string.lstrip().startswith(("{{", "[[")) and string.rstrip().endswith(("}}", "]]"))
         ):
             return string
 

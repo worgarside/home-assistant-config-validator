@@ -237,8 +237,7 @@ def format_output(
 
                 issue_line = " ".join(
                     (
-                        fmt_str(path.relative_to(const.REPO_PATH), "bold")
-                        + fmt_str(":", "cyan"),
+                        fmt_str(path.relative_to(const.REPO_PATH), "bold") + fmt_str(":", "cyan"),
                         exc_typ,
                         exc.fmt_msg,
                     ),
@@ -262,8 +261,7 @@ def format_output(
                     str(issue_count["total"]),
                     (
                         "amber"
-                        if (issue_count["total"] - issue_count["fixed"])
-                        < 10  # noqa: PLR2004
+                        if (issue_count["total"] - issue_count["fixed"]) < 10  # noqa: PLR2004
                         else "red"
                     ),
                 ),

@@ -81,9 +81,7 @@ class ShouldMatchFilepathItem(BaseModel):
             parts = [replace_non_alphanumeric(p, replace_with="-") for p in parts]
         elif self.case is not None:  # Pascal or Camel
             parts = [
-                "".join(
-                    word.capitalize() for word in replace_non_alphanumeric(p).split("_")
-                )
+                "".join(word.capitalize() for word in replace_non_alphanumeric(p).split("_"))
                 for p in parts
             ]
 
@@ -128,9 +126,9 @@ class ShouldMatchFilepathItem(BaseModel):
 class ValidationConfig(Config):
     """Dataclass for a package's validator configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[Literal[const.ConfigurationType.VALIDATION]] = (
-        const.ConfigurationType.VALIDATION
-    )
+    CONFIGURATION_TYPE: ClassVar[
+        Literal[const.ConfigurationType.VALIDATION]
+    ] = const.ConfigurationType.VALIDATION
 
     package: Package
 
