@@ -579,6 +579,9 @@ def load_yaml(
     Returns:
         JSONObj: The content of the YAML file as a JSON object
     """
+    if Secret not in HAYamlLoader.representer.yaml_representers:
+        add_custom_tags_to_loader(HAYamlLoader)
+
     content = cast(F, HAYamlLoader.load(path))
 
     if validate_content_type is not None and not issubclass(
@@ -765,8 +768,6 @@ def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
     _validate_json_path(__jsonpath)
     return parse(__jsonpath)
 
-
-add_custom_tags_to_loader(HAYamlLoader)
 
 __all__ = [
     "load_yaml",

@@ -279,7 +279,7 @@ def format_output(
     if issue_count["fixable"]:
         summary_line += f"\n{fixable_indicator} {fmt_str(issue_count['fixable'], 'bold', 'green')} fixable with the `--fix` option"  # noqa: E501
 
-    return (
+    return "\n" + (
         "\n".join(
             f"{fmt_str(f'{pkg_name:<{name_pad}}', 'bold', 'italic', 'blue')} {issue_line}"
             for pkg_name, issue_line in output_lines
