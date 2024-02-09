@@ -114,7 +114,7 @@ class Package:
         elif len(key_set := {str(k).split()[0] for k in package_config}) == 1:
             name = key_set.pop()
 
-            LOGGER.warning(
+            LOGGER.info(
                 "Found package in file %s with split keys, combined into: %r",
                 file.relative_to(const.REPO_PATH),
                 name,
