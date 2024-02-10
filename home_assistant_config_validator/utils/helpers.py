@@ -77,7 +77,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
             ".".join(
                 (
                     "automation",
-                    str(load_yaml(automation_file, resolve_tags=False).get("id", "")),
+                    str(load_yaml(automation_file, resolve_tags=False)[0].get("id", "")),
                 ),
             )
             for automation_file in (const.ENTITIES_DIR / "automation").rglob("*.yaml")

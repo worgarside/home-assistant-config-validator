@@ -98,7 +98,8 @@ class Package:
     @classmethod
     def parse_file(cls, file: Path) -> Package:
         """Parse a file from the packages directory."""
-        package_config: JSONObj = load_yaml(
+        package_config: JSONObj
+        package_config, _ = load_yaml(
             file,
             resolve_tags=False,
             validate_content_type=JSONObj,

@@ -32,6 +32,7 @@ from .ha_yaml_loader import (
     load_yaml,
     parse_jsonpath,
     set_json_value,
+    subclasses_recursive,
 )
 from .helpers import KnownEntityType, check_known_entity_usages, format_output
 
@@ -69,4 +70,5 @@ __all__ = [
     "ShouldExistError",
     "ShouldMatchFileNameError",
     "ShouldMatchFilePathError",
+    "subclasses_recursive",
 ]
