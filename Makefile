@@ -8,4 +8,10 @@ vscode-shortcut-1:
 	make try-repo
 
 vscode-shortcut-2:
+	poetry run python home_assistant_config_validator/readme_generator.py
+
+vscode-shortcut-3:
 	poetry run python home_assistant_config_validator/validate_entities.py
+
+vscode-shortcut-4:
+	poetry run python home_assistant_config_validator/validate_lovelace.py

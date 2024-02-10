@@ -79,14 +79,33 @@ def suppressables() -> list[str]:
     ]
 
 
+@lru_cache
+def parse_hacv_comment(comment: str, /) -> tuple[tuple[str, str | None], ...]:
+    comments = []
+    for s in comment.strip().lower().removeprefix("# hacv disable: ").split(","):
+        try:
+            suppressed, argument = s.strip().split(":", 1)
+        except ValueError:
+            suppressed, argument = s.strip(), None
+
+        comments.append((suppressed, argument))
+
+    return tuple(comments)
+
+
 class Entity(BaseModel):
     file__: Path = Field(exclude=True)
     modified__: bool = Field(default=False, exclude=True)
     suppressions__: dict[
-        str,
-        tuple[
-            Literal["shouldbehardcoded", "shouldmatchfilename", "shouldmatchfilepath"],
-            ...,
+        str,  # key
+        dict[
+            Literal[
+                "shouldbehardcoded",
+                "shouldexist",
+                "shouldmatchfilename",
+                "shouldmatchfilepath",
+            ],  # suppressed
+            tuple[str | None],  # argument(s)
         ],
     ] = Field(default_factory=dict)
 
@@ -94,60 +113,62 @@ class Entity(BaseModel):
 
     @classmethod
     def model_validate_file_content(
-        cls, file_content: JSONObj, /, *, comments_in_file: bool
+        cls,
+        file_content: JSONObj,
+        /,
+        *,
+        comments_in_file: bool,
     ) -> Self:
         """Parse the file content and extract any comments."""
         if comments_in_file is not False:
-            comments: dict[
+            suppressions: dict[
                 str,
-                set[
-                    Literal[
-                        "shouldbehardcoded",
-                        "shouldmatchfilename",
-                        "shouldmatchfilepath",
-                    ]
-                ],
-            ] = defaultdict(set)
+                dict[str, set[str | None]],
+            ] = defaultdict(lambda: defaultdict(set))
 
-            def search_comments(node: CommentedBase, /) -> None:
-                try:
-                    file_comments = node.ca.items
-                except AttributeError:
-                    return
+            cls.search_comments(file_content, suppressions)  # type: ignore[arg-type]
 
-                for key, item_comments in file_comments.items():
-                    try:
-                        # End-of-line comments are in the third position (index 2)
-                        if not (eol_comments := item_comments[2]):
-                            continue
-                    except IndexError:
-                        continue
+            try:
+                hacv_comment: str = file_content.ca.comment[1][0].value  # type: ignore[attr-defined]
+            except (AttributeError, IndexError, TypeError):
+                pass
+            else:
+                for suppressed, argument in parse_hacv_comment(hacv_comment):
+                    suppressions["*"][suppressed].add(argument)
 
-                    for eol_comment in (
-                        eol_comments if isinstance(eol_comments, list) else (eol_comments,)
-                    ):
-                        if (comment_value := eol_comment.value).startswith("# hacv disable: "):
-                            comments[key].update(
-                                s.strip()
-                                for s in comment_value.strip()
-                                .lower()
-                                .removeprefix("# hacv disable: ")
-                                .split(",")
-                                if s.strip() in suppressables()
-                            )
-
-                if isinstance(node, CommentedMap):
-                    for value in node.values():
-                        search_comments(value)
-                elif isinstance(node, CommentedSeq):
-                    for item in node:
-                        search_comments(item)
-
-            search_comments(file_content)  # type: ignore[arg-type]
-
-            file_content["suppressions__"] = comments
+            file_content["suppressions__"] = suppressions
 
         return cls.model_validate(file_content)
+
+    @staticmethod
+    def search_comments(  # noqa: PLR0912
+        node: CommentedBase, suppressions: dict[str, dict[str, set[str | None]]]
+    ) -> None:
+        """Search for HACV comments in a YAML file."""
+        try:
+            file_comments = node.ca.items
+        except AttributeError:
+            return
+
+        for key, item_comments in file_comments.items():
+            try:
+                # End-of-line comments are in the third position (index 2)
+                if not (eol_comments := item_comments[2]):
+                    continue
+            except IndexError:
+                continue
+
+            for eol_comment in eol_comments if isinstance(eol_comments, list) else (eol_comments,):
+                if (comment_value := eol_comment.value).startswith("# hacv disable: "):
+                    for suppressed, argument in parse_hacv_comment(comment_value):
+                        suppressions[key][suppressed].add(argument)
+
+        if isinstance(node, CommentedMap):
+            for value in node.values():
+                Entity.search_comments(value, suppressions)
+        elif isinstance(node, CommentedSeq):
+            for item in node:
+                Entity.search_comments(item, suppressions)
 
     def get(self, key: str, default: Any = None, /) -> Any:
         """Get a value from the entity."""
