@@ -21,6 +21,7 @@ from home_assistant_config_validator.utils import (
     const,
     format_output,
     load_yaml,
+    subclasses_recursive,
 )
 
 
@@ -98,14 +99,15 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
         tuple[LovelaceConfig, list[Path]]: The Lovelace config and a list of imported
             files for later reference.
     """
-    lovelace_config: LovelaceConfig = load_yaml(  # type: ignore[assignment]
+    lovelace_config: LovelaceConfig
+    lovelace_config, _ = load_yaml(  # type: ignore[assignment]
         const.LOVELACE_ROOT_FILE,
         resolve_tags=False,
     )
 
     imported_files: list[Path] = []
 
-    target_types = tuple(Tag.subclasses_recursive())
+    target_types = tuple(subclasses_recursive(Tag))
 
     traverse_dict(
         lovelace_config,  # type: ignore[arg-type]
@@ -118,7 +120,8 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
     )
 
     for dashboard_file in (const.LOVELACE_DIR / "dashboards").glob("*.yaml"):
-        dashboard_yaml: DashboardConfig = load_yaml(  # type: ignore[assignment]
+        dashboard_yaml: DashboardConfig
+        dashboard_yaml, _ = load_yaml(  # type: ignore[assignment]
             dashboard_file,
             resolve_tags=False,
         )
@@ -221,7 +224,8 @@ def main() -> None:
         ] and ll_file.parent.name not in ("dashboards", "archive"):
             all_issues[ll_file].append(UnusedFileError(ll_file))
 
-        lovelace_file_yaml: JSONObj = load_yaml(ll_file, resolve_tags=False)
+        lovelace_file_yaml: JSONObj
+        lovelace_file_yaml, _ = load_yaml(ll_file, resolve_tags=False)
 
         if bad_entity_usages := check_known_entity_usages(
             lovelace_file_yaml,

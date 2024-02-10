@@ -169,7 +169,10 @@ class ValidationConfig(Config):
                     json_path_str,
                     default=const.INEQUAL,
                 )
-            ) != hardcoded_value:
+            ) != hardcoded_value and (
+                "shouldbehardcoded"
+                not in entity_yaml.suppressions__.get(json_path_str.split(".")[-1], ())
+            ):
                 self.issues[entity_yaml.file__].append(
                     ShouldBeHardcodedError(
                         json_path_str,
@@ -188,6 +191,10 @@ class ValidationConfig(Config):
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
         for smfn_field in self.should_match_filename:
+            if "shouldmatchfilename" in entity_yaml.suppressions__.get(
+                smfn_field.split(".")[-1], ()
+            ):
+                continue
             try:
                 if (
                     fmt_value := replace_non_alphanumeric(
@@ -212,6 +219,11 @@ class ValidationConfig(Config):
         /,
     ) -> None:
         for field_path, config in self.should_match_filepath.items():
+            if "shouldmatchfilepath" in entity_yaml.suppressions__.get(
+                field_path.split(".")[-1], ()
+            ):
+                continue
+
             expected_value = config.get_expected_value(entity_yaml.file__, self.package)
 
             try:
