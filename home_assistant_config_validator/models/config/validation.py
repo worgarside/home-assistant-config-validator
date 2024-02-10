@@ -145,17 +145,17 @@ class ValidationConfig(Config):
     )
 
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
-        for field_name_1, field_name_2 in self.should_be_equal:
+        for json_path_str_1, json_path_str_2 in self.should_be_equal:
             try:
-                if (field_value_1 := get_json_value(entity_yaml, field_name_1)) != (
-                    field_value_2 := get_json_value(entity_yaml, field_name_2)
+                if (value_1 := get_json_value(entity_yaml, json_path_str_1)) != (
+                    value_2 := get_json_value(entity_yaml, json_path_str_2)
                 ):
                     self.issues[entity_yaml.file__].append(
                         ShouldBeEqualError(
-                            f1=field_name_1,
-                            v1=field_value_1,
-                            f2=field_name_2,
-                            v2=field_value_2,
+                            f1=json_path_str_1,
+                            v1=value_1,
+                            f2=json_path_str_2,
+                            v2=value_2,
                         ),
                     )
             except JsonPathNotFoundError as exc:
@@ -169,7 +169,10 @@ class ValidationConfig(Config):
                     json_path_str,
                     default=const.INEQUAL,
                 )
-            ) != hardcoded_value:
+            ) != hardcoded_value and (
+                "shouldbehardcoded"
+                not in entity_yaml.suppressions__.get(json_path_str.split(".")[-1], ())
+            ):
                 self.issues[entity_yaml.file__].append(
                     ShouldBeHardcodedError(
                         json_path_str,
@@ -179,27 +182,40 @@ class ValidationConfig(Config):
                 )
 
     def _validate_should_exist(self, entity_yaml: Entity, /) -> None:
-        for se_field in self.should_exist:
+        suppressed = entity_yaml.suppressions__.get("*", {}).get("shouldexist", ())
+
+        for json_path_str in self.should_exist:
+            if json_path_str.split(".")[-1] in suppressed:
+                continue
+
             try:
-                get_json_value(entity_yaml, se_field)
+                get_json_value(entity_yaml, json_path_str)
             except JsonPathNotFoundError as exc:
-                self.issues[entity_yaml.file__].append(ShouldExistError(se_field, exc))
+                self.issues[entity_yaml.file__].append(ShouldExistError(json_path_str, exc))
 
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
-        for smfn_field in self.should_match_filename:
+        if "shouldmatchfilename" in entity_yaml.suppressions__.get("*", ()):
+            return
+
+        for json_path_str in self.should_match_filename:
+            if "shouldmatchfilename" in entity_yaml.suppressions__.get(
+                json_path_str.split(".")[-1],
+                (),
+            ):
+                continue
             try:
                 if (
                     fmt_value := replace_non_alphanumeric(
                         field_value := get_json_value(
                             entity_yaml,
-                            smfn_field,
+                            json_path_str,
                             valid_type=str,
                         ),
                     )
                 ) != entity_yaml.file__.with_suffix("").name.lower():
                     self.issues[entity_yaml.file__].append(
-                        ShouldMatchFileNameError(smfn_field, field_value, fmt_value),
+                        ShouldMatchFileNameError(json_path_str, field_value, fmt_value),
                     )
             except JsonPathNotFoundError:
                 # Some entity types (e.g. sensor.systemmonitor) don't have certain fields
@@ -211,19 +227,28 @@ class ValidationConfig(Config):
         entity_yaml: Entity,
         /,
     ) -> None:
-        for field_path, config in self.should_match_filepath.items():
+        if "shouldmatchfilepath" in entity_yaml.suppressions__.get("*", ()):
+            return
+
+        for json_path_str, config in self.should_match_filepath.items():
+            if "shouldmatchfilepath" in entity_yaml.suppressions__.get(
+                json_path_str.split(".")[-1],
+                (),
+            ):
+                continue
+
             expected_value = config.get_expected_value(entity_yaml.file__, self.package)
 
             try:
                 actual_value = get_json_value(
                     entity_yaml,
-                    field_path,
+                    json_path_str,
                     valid_type=str,
                 ).lower()
             except InvalidConfigurationError:
                 self.issues[entity_yaml.file__].append(
                     ShouldMatchFilePathError(
-                        field_path,
+                        json_path_str,
                         None,
                         expected_value,
                     ),
@@ -251,7 +276,7 @@ class ValidationConfig(Config):
                 ):
                     self.issues[entity_yaml.file__].append(
                         ShouldMatchFilePathError(
-                            field_path,
+                            json_path_str,
                             actual_value,
                             expected_value,
                         ),

@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 import shutil
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections import defaultdict
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from logging import getLogger
@@ -29,6 +30,7 @@ from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from ruamel.yaml import YAML, ScalarNode
+from ruamel.yaml.comments import CommentedBase, CommentedMap, CommentedSeq
 from ruamel.yaml.representer import Representer
 from wg_utilities.functions.json import (
     JSONArr,
@@ -66,11 +68,107 @@ HAYamlLoader.preserve_quotes = True
 HAYamlLoader.indent(mapping=2, sequence=4, offset=2)
 
 
+@lru_cache
+def suppressables() -> list[str]:
+    return [
+        sc.__name__.removesuffix("Error").lower()
+        for sc in subclasses_recursive(
+            InvalidConfigurationError,
+            condition=lambda sc: sc.__name__.startswith("Should"),
+        )
+    ]
+
+
+@lru_cache
+def parse_hacv_comment(comment: str, /) -> tuple[tuple[str, str | None], ...]:
+    comments = []
+    for s in comment.strip().lower().removeprefix("# hacv disable: ").split(","):
+        try:
+            suppressed, argument = s.strip().split(":", 1)
+        except ValueError:
+            suppressed, argument = s.strip(), None
+
+        comments.append((suppressed, argument))
+
+    return tuple(comments)
+
+
 class Entity(BaseModel):
     file__: Path = Field(exclude=True)
     modified__: bool = Field(default=False, exclude=True)
+    suppressions__: dict[
+        str,  # key
+        dict[
+            Literal[
+                "shouldbehardcoded",
+                "shouldexist",
+                "shouldmatchfilename",
+                "shouldmatchfilepath",
+            ],  # suppressed
+            tuple[str | None],  # argument(s)
+        ],
+    ] = Field(default_factory=dict)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+
+    @classmethod
+    def model_validate_file_content(
+        cls,
+        file_content: JSONObj,
+        /,
+        *,
+        comments_in_file: bool,
+    ) -> Self:
+        """Parse the file content and extract any comments."""
+        if comments_in_file is not False:
+            suppressions: dict[
+                str,
+                dict[str, set[str | None]],
+            ] = defaultdict(lambda: defaultdict(set))
+
+            cls.search_comments(file_content, suppressions)  # type: ignore[arg-type]
+
+            try:
+                hacv_comment: str = file_content.ca.comment[1][0].value  # type: ignore[attr-defined]
+            except (AttributeError, IndexError, TypeError):
+                pass
+            else:
+                for suppressed, argument in parse_hacv_comment(hacv_comment):
+                    suppressions["*"][suppressed].add(argument)
+
+            file_content["suppressions__"] = suppressions
+
+        return cls.model_validate(file_content)
+
+    @staticmethod
+    def search_comments(  # noqa: PLR0912
+        node: CommentedBase, suppressions: dict[str, dict[str, set[str | None]]]
+    ) -> None:
+        """Search for HACV comments in a YAML file."""
+        try:
+            file_comments = node.ca.items
+        except AttributeError:
+            return
+
+        for key, item_comments in file_comments.items():
+            try:
+                # End-of-line comments are in the third position (index 2)
+                if not (eol_comments := item_comments[2]):
+                    continue
+            except IndexError:
+                continue
+
+            for eol_comment in eol_comments if isinstance(eol_comments, list) else (eol_comments,):
+                if (comment_value := eol_comment.value).startswith("# hacv disable: "):
+                    for suppressed, argument in parse_hacv_comment(comment_value):
+                        suppressions[key][suppressed].add(argument)
+
+        if isinstance(node, CommentedMap):
+            for value in node.values():
+                Entity.search_comments(value, suppressions)
+        elif isinstance(node, CommentedSeq):
+            for item in node:
+                Entity.search_comments(item, suppressions)
 
     def get(self, key: str, default: Any = None, /) -> Any:
         """Get a value from the entity."""
@@ -149,27 +247,6 @@ class Tag(ABC, Generic[ResTo]):
         """
         return cls(loader.construct_scalar(node), **kwargs)
 
-    @staticmethod
-    def subclasses_recursive(
-        __cls: type[Tag[Any]] | None = None,
-        /,
-    ) -> tuple[type[Any], ...]:
-        """Get all subclasses of a class recursively.
-
-        Args:
-            cls (type[_CustomTag]): The class to get the subclasses of.
-
-        Returns:
-            list[type[_CustomTag]]: A list of all subclasses of the class.
-        """
-        __cls = __cls or Tag
-
-        indirect: list[type[Any]] = []
-        for subclass in (direct := __cls.__subclasses__()):
-            indirect.extend(__cls.subclasses_recursive(subclass))
-
-        return tuple(direct + indirect)
-
     @abstractmethod
     def resolve(
         self,
@@ -217,7 +294,7 @@ class Include(Tag[JSONObj | list[JSONObj]]):
         return load_yaml(
             source_file.parent / self.path,
             resolve_tags=resolve_tags,
-        )
+        )[0]
 
 
 @dataclass
@@ -252,7 +329,7 @@ class Secret(Tag[str]):
             ValueError: If the secret is not found in the file and no fallback value
                 is provided.
         """
-        fake_secrets = load_yaml(self.FAKE_SECRETS_PATH, resolve_tags=False)
+        fake_secrets, _ = load_yaml(self.FAKE_SECRETS_PATH, resolve_tags=False)
 
         if isinstance(fake_secrets, dict):
             if (fake_secret := fake_secrets.get(self.secret_id, fallback_value)) is not None:
@@ -329,7 +406,8 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         data: ResToPath = self.RESOLVES_TO()
 
         for file in sorted((source_file.parent / self.path).rglob("*.yaml")):
-            file_content: F = load_yaml(
+            file_content: F
+            file_content, _ = load_yaml(
                 file,
                 resolve_tags=resolve_tags,
                 validate_content_type=self.FILE_CONTENT_TYPE,
@@ -408,7 +486,7 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
         self,
         file: Path,
     ) -> EntityGenerator:
-        file_content = load_yaml(
+        file_content, comments_in_file = load_yaml(
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
@@ -417,7 +495,7 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
 
         file_content["file__"] = file.resolve()
 
-        yield Entity.model_validate(file_content)
+        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
 
 
 @dataclass
@@ -453,7 +531,8 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         self,
         file: Path,
     ) -> EntityGenerator:
-        file_content: list[JSONObj] = load_yaml(
+        file_content: list[JSONObj]
+        file_content, comments_in_file = load_yaml(
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
@@ -463,7 +542,7 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         for elem in file_content:
             elem["file__"] = file.resolve()
 
-            yield Entity.model_validate(elem)
+            yield Entity.model_validate_file_content(elem, comments_in_file=comments_in_file)
 
 
 @dataclass
@@ -497,14 +576,14 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
         self,
         file: Path,
     ) -> EntityGenerator:
-        file_content = load_yaml(
+        file_content, comments_in_file = load_yaml(
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
             isolate_tags_from_files=True,
         )
         file_content["file__"] = file.resolve()
-        yield Entity.model_validate(file_content)
+        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
 
 
 @dataclass
@@ -538,7 +617,7 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         self,
         file: Path,
     ) -> EntityGenerator:
-        file_content = load_yaml(
+        file_content, comments_in_file = load_yaml(
             file,
             resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
@@ -546,7 +625,7 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         )
         file_content["file__"] = file.resolve()
 
-        yield Entity.model_validate(file_content)
+        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
 
 
 def load_yaml(
@@ -555,7 +634,7 @@ def load_yaml(
     resolve_tags: bool,
     validate_content_type: type[F] | None = None,
     isolate_tags_from_files: bool = False,
-) -> F:
+) -> tuple[F, bool]:
     """Load a YAML file.
 
     Args:
@@ -575,7 +654,12 @@ def load_yaml(
     if Secret not in HAYamlLoader.representer.yaml_representers:
         add_custom_tags_to_loader(HAYamlLoader)
 
-    content = cast(F, HAYamlLoader.load(path))
+    with path.open(encoding="utf-8") as fin:
+        raw = fin.read()
+
+        content = cast(F, HAYamlLoader.load(raw))
+
+        comments_in_file = "# hacv " in raw
 
     if validate_content_type is not None and not issubclass(
         type(content),
@@ -603,7 +687,7 @@ def load_yaml(
             log_op_func_failures=False,
         )
 
-    return content
+    return content, comments_in_file
 
 
 def add_custom_tags_to_loader(loader: YAML) -> None:
@@ -612,7 +696,7 @@ def add_custom_tags_to_loader(loader: YAML) -> None:
     Args:
         loader (YAML): The YAML loader to add the custom tags to.
     """
-    for tag_class in Tag.subclasses_recursive():
+    for tag_class in subclasses_recursive(Tag):
         try:
             loader.constructor.add_constructor(tag_class.TAG, tag_class.construct)
             LOGGER.debug("Added constructor for %s", tag_class.TAG)
@@ -762,6 +846,18 @@ def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
     return parse(__jsonpath)
 
 
-__all__ = [
-    "load_yaml",
-]
+def subclasses_recursive(
+    __cls: type[Any],
+    /,
+    *,
+    condition: None | Callable[[type[Any]], bool] = None,
+) -> Generator[type[Any], None, None]:
+    """Get all subclasses of a class recursively."""
+    for subclass in __cls.__subclasses__():
+        if condition is None or condition(subclass) is True:
+            yield subclass
+
+        yield from subclasses_recursive(subclass, condition=condition)
+
+
+__all__ = ["load_yaml", "subclasses_recursive"]

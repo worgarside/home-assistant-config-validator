@@ -72,7 +72,7 @@ class Config(BaseModel, ABC):
     package: Package
 
     INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = defaultdict(
-        dict
+        dict,
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
