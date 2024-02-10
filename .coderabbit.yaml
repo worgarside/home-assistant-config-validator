@@ -15,7 +15,7 @@ reviews:
   collapse_walkthrough: true
 
   path_filters:
-    - home_assistant_config_validator/**.py
+    - home_assistant_config_validator/**/*.py
 
   path_instructions:
     - path: '**/*.py'
