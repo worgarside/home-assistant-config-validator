@@ -85,7 +85,9 @@ class Package:
 
         if (
             allow_creation
-            and (pkg_file := const.PACKAGES_DIR.joinpath(name).with_suffix(const.EXT)).is_file()
+            and (
+                pkg_file := const.PACKAGES_DIR.joinpath(name).with_suffix(const.EXT)
+            ).is_file()
         ):
             return cls.parse_file(pkg_file)
 

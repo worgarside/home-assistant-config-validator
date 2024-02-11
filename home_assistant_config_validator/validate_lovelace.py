@@ -100,7 +100,9 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
                     str(load_yaml(automation_file, resolve_tags=False)[0].get("id", "")),
                 ),
             )
-            for automation_file in (const.ENTITIES_DIR / "automation").rglob(const.GLOB_PATTERN)
+            for automation_file in (const.ENTITIES_DIR / "automation").rglob(
+                const.GLOB_PATTERN,
+            )
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
     }
