@@ -50,6 +50,7 @@ def parse_arguments() -> None:
         help="Path to custom validations configuration file.",
         default=PCH_CONFIG,
     )
+
     parser.add_argument(
         "-a",
         "--validate-all",
