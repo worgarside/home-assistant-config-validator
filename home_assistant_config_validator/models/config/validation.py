@@ -7,7 +7,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from logging import getLogger
 from pathlib import Path
-from typing import ClassVar, Final, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from wg_utilities.loggers import add_stream_handler
@@ -131,11 +131,7 @@ class ValidationConfig(Config):
         Literal[const.ConfigurationType.VALIDATION]
     ] = const.ConfigurationType.VALIDATION
 
-    KNOWN_ENTITY_IDS: Final[tuple[str, ...]] = tuple(
-        DocumentationConfig.get_for_package(pkg).get_id(entity, prefix_domain=True)
-        for pkg in Package.get_packages()
-        for entity in pkg.entities
-    )
+    KNOWN_ENTITY_IDS: ClassVar[tuple[str, ...]]
 
     package: Package
 
@@ -150,6 +146,15 @@ class ValidationConfig(Config):
     issues: dict[Path, list[InvalidConfigurationError]] = Field(
         default_factory=lambda: defaultdict(list),
     )
+
+    def model_post_init(self, *_: Any, **__: Any) -> None:
+        """Post-initialisation steps for the model."""
+        if not hasattr(self, "KNOWN_ENTITY_IDS"):
+            ValidationConfig.KNOWN_ENTITY_IDS = tuple(
+                DocumentationConfig.get_for_package(pkg).get_id(entity, prefix_domain=True)
+                for pkg in Package.get_packages()
+                for entity in pkg.entities
+            )
 
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
