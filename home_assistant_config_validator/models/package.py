@@ -85,7 +85,7 @@ class Package:
 
         if (
             allow_creation
-            and (pkg_file := const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml")).is_file()
+            and (pkg_file := const.PACKAGES_DIR.joinpath(name).with_suffix(const.EXT)).is_file()
         ):
             return cls.parse_file(pkg_file)
 
@@ -94,7 +94,7 @@ class Package:
     @classmethod
     def get_packages(cls) -> Generator[Package, None, None]:
         """Generate all packages."""
-        for pkg_file in sorted(const.PACKAGES_DIR.glob("*.yaml")):
+        for pkg_file in sorted(const.PACKAGES_DIR.glob(const.GLOB_PATTERN)):
             yield cls.by_name(pkg_file.stem)
 
     @classmethod

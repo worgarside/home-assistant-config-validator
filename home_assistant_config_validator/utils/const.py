@@ -6,15 +6,18 @@ import re
 from enum import StrEnum
 from os import getenv
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 from uuid import uuid4
 
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
+EXT: Final[Literal[".yaml"]] = ".yaml"
+GLOB_PATTERN: Final[str] = f"*{EXT}"
+
 ENTITIES_DIR: Final[Path] = REPO_PATH / "entities"
 PACKAGES_DIR: Final[Path] = REPO_PATH / "integrations"
 LOVELACE_DIR: Final[Path] = REPO_PATH / "lovelace"
-LOVELACE_ROOT_FILE: Final[Path] = REPO_PATH / "ui-lovelace.yaml"
+LOVELACE_ROOT_FILE: Final[Path] = REPO_PATH.joinpath("ui-lovelace").with_suffix(EXT)
 
 NULL_PATH: Final[Path] = Path("/dev/null")
 

@@ -323,7 +323,7 @@ class Secret(Tag[str]):
     secret_id: str
     file: Path = field(init=False)
 
-    FAKE_SECRETS_PATH: ClassVar[Path] = const.REPO_PATH / "secrets.fake.yaml"
+    FAKE_SECRETS_PATH: ClassVar[Path] = const.REPO_PATH / f"secrets.fake{const.EXT}"
     TAG: ClassVar[Literal["!secret"]] = "!secret"
 
     def resolve(self, *_: Any, **__: Any) -> str:
@@ -421,7 +421,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
 
         data: ResToPath = self.RESOLVES_TO()
 
-        for file in sorted((source_file.parent / self.path).rglob("*.yaml")):
+        for file in sorted((source_file.parent / self.path).rglob(const.GLOB_PATTERN)):
             file_content: F
             file_content, _ = load_yaml(
                 file,
@@ -459,7 +459,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
     @property
     def entity_generator(self) -> EntityGenerator:
         """Get the entities from the tag."""
-        for file in sorted(self.absolute_path.rglob("*.yaml")):
+        for file in sorted(self.absolute_path.rglob(const.GLOB_PATTERN)):
             yield from self._get_entities_from_file(file)
 
     def __str__(self) -> str:

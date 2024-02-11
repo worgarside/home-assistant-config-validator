@@ -71,7 +71,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
         package: {
             "names": [
                 f"{package}.{entity_file.stem}"
-                for entity_file in (const.ENTITIES_DIR / package).rglob("*.yaml")
+                for entity_file in (const.ENTITIES_DIR / package).rglob(const.GLOB_PATTERN)
             ],
             "name_pattern": re.compile(
                 rf"^{package}\.[a-z0-9_-]+$",
@@ -100,7 +100,7 @@ def _get_known_entities() -> dict[str, KnownEntityType]:
                     str(load_yaml(automation_file, resolve_tags=False)[0].get("id", "")),
                 ),
             )
-            for automation_file in (const.ENTITIES_DIR / "automation").rglob("*.yaml")
+            for automation_file in (const.ENTITIES_DIR / "automation").rglob(const.GLOB_PATTERN)
         ],
         "name_pattern": re.compile(r"^automation\.[a-z0-9_-]+$", flags=re.IGNORECASE),
     }
@@ -262,7 +262,7 @@ def load_lovelace_config() -> tuple[LovelaceConfig, list[Path]]:
         pass_on_fail=False,
     )
 
-    for dashboard_file in (const.LOVELACE_DIR / "dashboards").glob("*.yaml"):
+    for dashboard_file in (const.LOVELACE_DIR / "dashboards").glob(const.GLOB_PATTERN):
         dashboard_yaml: DashboardConfig
         dashboard_yaml, _ = load_yaml(  # type: ignore[assignment]
             dashboard_file,
@@ -352,8 +352,8 @@ def main() -> None:
     lovelace_config, imported_files = load_lovelace_config()
 
     all_lovelace_files = [
-        *list(const.LOVELACE_DIR.rglob("*.yaml")),
-        const.REPO_PATH / "ui-lovelace.yaml",
+        *list(const.LOVELACE_DIR.rglob(const.GLOB_PATTERN)),
+        const.LOVELACE_ROOT_FILE,
     ]
 
     # Unused files

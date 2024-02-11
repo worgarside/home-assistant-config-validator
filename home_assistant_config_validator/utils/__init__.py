@@ -55,7 +55,6 @@ __all__ = [
     "EntityDefinitionError",
     "PackageNotFoundError",
     "PackageDefinitionError",
-    "check_known_entity_usages",
     "format_output",
     "Secret",
     "InvalidFieldTypeError",
