@@ -8,6 +8,8 @@ from os import getenv
 from pathlib import Path
 from typing import Literal
 
+from wg_utilities.loggers import add_stream_handler
+
 from home_assistant_config_validator.utils.const import EXT, REPO_PATH
 
 AUTOFIX: bool = getenv("AUTOFIX", "0") == "1"
@@ -82,6 +84,7 @@ def parse_arguments() -> None:
     for k, v in Logger.manager.loggerDict.items():
         if k.startswith("home_assistant_config_validator") and isinstance(v, Logger):
             v.setLevel(LOG_LEVEL)
+            add_stream_handler(v, level=LOG_LEVEL)
 
 
 __all__ = [

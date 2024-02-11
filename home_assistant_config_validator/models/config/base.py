@@ -14,14 +14,11 @@ from typing import ClassVar, Self
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 from wg_utilities.functions.json import JSONObj
-from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
 
 
 def replace_non_alphanumeric(

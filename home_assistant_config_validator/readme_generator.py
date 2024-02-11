@@ -11,14 +11,11 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Literal
 
-from wg_utilities.loggers import add_stream_handler
-
 from home_assistant_config_validator.models import Package, ReadmeEntity
 from home_assistant_config_validator.utils import args, const
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
+
 
 NEWLINE: Final[Literal["\n"]] = "\n"
 
