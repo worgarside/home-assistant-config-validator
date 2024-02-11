@@ -115,7 +115,12 @@ class ReadmeEntity:
                 code=(key.endswith("ID") or key.casefold() == "command"),
             )
 
-            yield f"- {key}: {val!s}"
+            if val.startswith("\n"):
+                yield f"- {key}:"
+                yield val.lstrip()
+            else:
+                yield f"- {key}: {val!s}"
+
         yield f"  File: {self.file}"
 
     @property
