@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from collections.abc import Generator
 from dataclasses import dataclass
-from functools import cached_property
 from json import dumps
 from pathlib import Path
 from typing import Any, Final
@@ -32,9 +31,8 @@ class ReadmeEntity:
         /,
     ) -> Generator[ReadmeEntity, None, None]:
         """Generate a list of ReadmeEntity instances."""
-        for entity_genr in package.entity_generators:
-            for entity in entity_genr:
-                yield cls(entity=entity, package=package)
+        for entity in package.entities:
+            yield cls(entity=entity, package=package)
 
     @staticmethod
     def markdown_format(
@@ -53,7 +51,7 @@ class ReadmeEntity:
             __v = dumps(__v, indent=2)
             code = True
 
-        if code or (isinstance(__v, str) and const.ENTITY_ID_PATTERN.fullmatch(__v)):
+        if code or (isinstance(__v, str) and const.SNAKE_SLUG_PATTERN.fullmatch(__v)):
             __v = str(__v).strip(" `")
 
             __v = f"\n```{language}\n{__v}\n```" if "\n" in __v else f"`{__v}`"
@@ -69,9 +67,7 @@ class ReadmeEntity:
     @property
     def entity_id(self) -> str:
         """Estimate the entity ID."""
-        e_id = self.docs_config.get_id(self.entity, default=self.entity.file__)
-
-        return f"{self.package.name}.{e_id.stem if isinstance(e_id, Path) else e_id}"
+        return self.docs_config.get_id(self.entity, prefix_domain=True)
 
     @property
     def description(self) -> Generator[str, None, None]:
@@ -83,7 +79,7 @@ class ReadmeEntity:
         for line in str(self.docs_config.get_description(self.entity)).splitlines():
             yield self.markdown_format(line, block_quote=True)
 
-    @cached_property
+    @property
     def docs_config(self) -> DocumentationConfig:
         """Get the documentation configuration for the package."""
         return DocumentationConfig.get_for_package(self.package)

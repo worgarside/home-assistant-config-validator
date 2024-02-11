@@ -18,7 +18,10 @@ LOVELACE_ROOT_FILE: Final[Path] = REPO_PATH / "ui-lovelace.yaml"
 
 NULL_PATH: Final[Path] = Path("/dev/null")
 
-ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z_]+\.?[a-z_]+$")
+SNAKE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
+ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$", flags=re.IGNORECASE
+)
 
 
 class ConfigurationType(StrEnum):
@@ -41,6 +44,37 @@ class Inequal:
 
 INEQUAL = Inequal()
 
+COMMON_SERVICES = (
+    "decrement",
+    "increment",
+    "pause",
+    "play",
+    "reload",
+    "select_option",
+    "set_datetime",
+    "set_level",
+    "set_options",
+    "set_value",
+    "set_value",
+    "start",
+    "stop",
+    "toggle",
+    "turn_off",
+    "turn_on",
+)
+
+YAML_ONLY_PACKAGES: Final[tuple[str, ...]] = (
+    "automation",
+    "input_boolean",
+    "input_button",
+    "input_datetime",
+    "input_number",
+    "input_select",
+    "input_text",
+    "script",
+    "shell_command",
+    "var",
+)
 
 __all__ = [
     "ENTITIES_DIR",
@@ -50,4 +84,6 @@ __all__ = [
     "NULL_PATH",
     "ConfigurationType",
     "INEQUAL",
+    "COMMON_SERVICES",
+    "YAML_ONLY_PACKAGES",
 ]

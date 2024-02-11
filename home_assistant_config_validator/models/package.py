@@ -13,6 +13,7 @@ from wg_utilities.functions.json import JSONObj, process_json_object
 from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.utils import (
+    Entity,
     EntityGenerator,
     PackageDefinitionError,
     PackageNotFoundError,
@@ -39,7 +40,7 @@ class Package:
     name: str
     root_file: Path
     tag_paths: Iterable[PurePath]
-    entity_generators: list[EntityGenerator]
+    entity_generators__: list[EntityGenerator]
 
     def __post_init__(self: Self) -> None:
         """Add the instance to the instances dict."""
@@ -82,10 +83,11 @@ class Package:
         if (self := cls.INSTANCES.get(name)) is not None:
             return self
 
-        if allow_creation and const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml").is_file():
-            return cls.parse_file(
-                const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml"),
-            )
+        if (
+            allow_creation
+            and (pkg_file := const.PACKAGES_DIR.joinpath(name).with_suffix(".yaml")).is_file()
+        ):
+            return cls.parse_file(pkg_file)
 
         raise PackageNotFoundError(const.PACKAGES_DIR.joinpath(name))
 
@@ -148,14 +150,23 @@ class Package:
             return cls(
                 pkg_name=file.stem,
                 name=name,
-                entity_generators=entity_generators,
+                entity_generators__=entity_generators,
                 root_file=file,
                 tag_paths=tag_paths,
             )
 
-        pkg.entity_generators.extend(entity_generators)
+        pkg.entity_generators__.extend(entity_generators)
 
         return pkg
+
+    @cached_property
+    def entities(self) -> tuple[Entity, ...]:
+        """Generate all entities."""
+        entities: list[Entity] = []
+        for entity_generator in self.entity_generators__:
+            entities.extend(entity_generator)
+
+        return tuple(entities)
 
     def __hash__(self) -> int:
         """Return a hash of the package."""

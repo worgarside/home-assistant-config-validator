@@ -7,7 +7,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from logging import getLogger
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from wg_utilities.loggers import add_stream_handler
@@ -16,6 +16,7 @@ from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
     Entity,
     InvalidConfigurationError,
+    InvalidDependencyError,
     JsonPathNotFoundError,
     JSONPathStr,
     ShouldBeEqualError,
@@ -24,12 +25,12 @@ from home_assistant_config_validator.utils import (
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
     args,
-    check_known_entity_usages,
     const,
     get_json_value,
 )
 
 from .base import Config, replace_non_alphanumeric
+from .documentation import DocumentationConfig
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -130,6 +131,12 @@ class ValidationConfig(Config):
         Literal[const.ConfigurationType.VALIDATION]
     ] = const.ConfigurationType.VALIDATION
 
+    KNOWN_ENTITY_IDS: Final[tuple[str, ...]] = tuple(
+        DocumentationConfig.get_for_package(pkg).get_id(entity, prefix_domain=True)
+        for pkg in Package.get_packages()
+        for entity in pkg.entities
+    )
+
     package: Package
 
     should_be_equal: list[tuple[JSONPathStr, JSONPathStr]] = Field(default_factory=list)
@@ -143,6 +150,26 @@ class ValidationConfig(Config):
     issues: dict[Path, list[InvalidConfigurationError]] = Field(
         default_factory=lambda: defaultdict(list),
     )
+
+    def _validate_known_entity_ids(self, entity: Entity, /) -> None:
+        """Validate that the Entity doesn't consume any unknown entities."""
+        if "invaliddependency" in entity.suppressions__.get("*", ()):
+            return
+
+        entity_id = None
+
+        for key, dep in entity.entity_dependencies:
+            if dep in self.KNOWN_ENTITY_IDS or "invaliddependency" in entity.suppressions__.get(
+                key, ()
+            ):
+                continue
+
+            if entity_id is None:
+                entity_id = DocumentationConfig.get_for_package(self.package).get_id(
+                    entity, prefix_domain=True
+                )
+
+            self.issues[entity.file__].append(InvalidDependencyError(entity_id, dep))
 
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for json_path_str_1, json_path_str_2 in self.should_be_equal:
@@ -222,11 +249,7 @@ class ValidationConfig(Config):
                 # (e.g. name). If it's required, it'll get picked up in the other checks.
                 continue
 
-    def _validate_should_match_filepath(
-        self,
-        entity_yaml: Entity,
-        /,
-    ) -> None:
+    def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
         if "shouldmatchfilepath" in entity_yaml.suppressions__.get("*", ()):
             return
 
@@ -282,7 +305,7 @@ class ValidationConfig(Config):
                         ),
                     )
 
-    def validate_package(self) -> None:
+    def validate_package(self) -> dict[Path, list[InvalidConfigurationError]]:
         """Validate a package's YAML files.
 
         Each file is validated against Home Assistant's schema for that package, and
@@ -290,30 +313,27 @@ class ValidationConfig(Config):
         evaluating the JSON configuration adjacent to this module and applying each
         validation rule to the entity.
 
-        Invalid files are added to the `self._package_issues` dict, with the file path
+        Invalid files are added to the `self.issues` dict, with the file path
         as the key and a list of exceptions as the value.
         """
-        for entity_genr in self.package.entity_generators:
-            for entity in entity_genr:
-                self.issues[entity.file__].extend(
-                    check_known_entity_usages(
-                        entity.model_dump(),
-                        entity_keys=("entity_id", "service"),
-                    ),
-                )
+        self.issues = defaultdict(list)
 
-                for validator in self.validators:
-                    validator(entity)
+        for entity in self.package.entities:
+            for validator in self.validators:
+                validator(entity)
 
-                if args.AUTOFIX and self.issues[entity.file__]:
-                    entity.autofix_file_issues(self.issues[entity.file__])
+            if args.AUTOFIX and self.issues[entity.file__]:
+                entity.autofix_file_issues(self.issues[entity.file__])
+
+        return self.issues
 
     @property
     def validators(self) -> tuple[Callable[[Entity], None], ...]:
         """Get the validation functions for the package."""
         return (
-            self._validate_should_be_hardcoded,
+            self._validate_known_entity_ids,
             self._validate_should_be_equal,
+            self._validate_should_be_hardcoded,
             self._validate_should_exist,
             self._validate_should_match_filename,
             self._validate_should_match_filepath,

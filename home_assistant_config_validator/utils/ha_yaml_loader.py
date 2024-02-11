@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from logging import getLogger
 from pathlib import Path, PurePath
 from tempfile import NamedTemporaryFile
@@ -38,6 +38,7 @@ from wg_utilities.functions.json import (
     JSONVal,
     TargetProcessorFunc,
     process_json_object,
+    traverse_dict,
 )
 from wg_utilities.loggers import add_stream_handler
 
@@ -74,7 +75,6 @@ def suppressables() -> list[str]:
         sc.__name__.removesuffix("Error").lower()
         for sc in subclasses_recursive(
             InvalidConfigurationError,
-            condition=lambda sc: sc.__name__.startswith("Should"),
         )
     ]
 
@@ -94,17 +94,14 @@ def parse_hacv_comment(comment: str, /) -> tuple[tuple[str, str | None], ...]:
 
 
 class Entity(BaseModel):
+    INSTANCES: ClassVar[dict[str, Self]] = {}
+
     file__: Path = Field(exclude=True)
     modified__: bool = Field(default=False, exclude=True)
     suppressions__: dict[
         str,  # key
         dict[
-            Literal[
-                "shouldbehardcoded",
-                "shouldexist",
-                "shouldmatchfilename",
-                "shouldmatchfilepath",
-            ],  # suppressed
+            str,  # suppressed
             tuple[str | None],  # argument(s)
         ],
     ] = Field(default_factory=dict)
@@ -215,6 +212,25 @@ class Entity(BaseModel):
                 new_file or self.file__,
                 "dump",
             ) from exc
+
+    @cached_property
+    def entity_dependencies(self) -> set[tuple[str, str]]:
+        """Get the entities consumed by this entity."""
+        deps = set()
+
+        def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
+            if (
+                const.ENTITY_ID_PATTERN.fullmatch(value)
+                and value.split(".")[0] in const.YAML_ONLY_PACKAGES
+                and value.split(".")[1] not in const.COMMON_SERVICES
+            ):
+                deps.add((dict_key or "", value))
+
+            return value
+
+        traverse_dict(self.model_dump(), target_type=str, target_processor_func=_cb)
+
+        return deps
 
 
 EntityGenerator = Generator[Entity, None, None]

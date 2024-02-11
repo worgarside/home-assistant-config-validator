@@ -195,6 +195,16 @@ class InvalidFieldValueError(InvalidConfigurationError):
         self.fmt_msg = message
 
 
+class InvalidDependencyError(InvalidConfigurationError):
+    """Raised when an entity has an invalid dependency."""
+
+    def __init__(self, entity: str, dependency: str) -> None:
+        """Initialize the error."""
+        super().__init__(f"{entity} has invalid dependency: {dependency}")
+
+        self.fmt_msg = dependency
+
+
 class ShouldBeHardcodedError(FixableConfigurationError):
     """Raised when a field should be hardcoded but isn't."""
 
@@ -259,4 +269,5 @@ __all__ = [
     "EntityDefinitionError",
     "PackageNotFoundError",
     "PackageDefinitionError",
+    "InvalidDependencyError",
 ]
