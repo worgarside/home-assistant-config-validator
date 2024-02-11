@@ -65,7 +65,7 @@ no_gitignore = false
 
 [tool.ruff]
 fix = true
-line-length = 100
+line-length = 95
 lint.select = [
   "A",   # https://docs.astral.sh/ruff/rules/#flake8-builtins-a
   "ARG", # https://docs.astral.sh/ruff/rules/#flake8-unused-arguments-arg
@@ -98,7 +98,6 @@ lint.select = [
   "UP",  # https://docs.astral.sh/ruff/rules/#pyupgrade-up
   "W",   # https://docs.astral.sh/ruff/rules/#warning-w
 ]
-lint.ignore = ["COM812"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]

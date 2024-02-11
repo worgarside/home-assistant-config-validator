@@ -55,12 +55,12 @@ class ShouldMatchFilepathItem(BaseModel):
     ignore_chars: str = ""
     remove_package_path: bool | None = Field(
         None,
-        description="Explicitly remove the package path from the file path for validation. The "
-        "behaviour varies depending on the number of tags in the file: if true, the expected "
-        "value will be relative to the path of the tag which the entity belongs; if false, the "
-        "expected value will be relative to the entities directory; if null, the expected value "
-        "will be relative to the highest common ancestor of the tag paths. Fioles with a single "
-        "tag will exhibit the same behaviour for `True` and `None`.",
+        description="Explicitly remove the package path from the file path for validation. "
+        "The behaviour varies depending on the number of tags in the file: if true, the "
+        "expected value will be relative to the path of the tag which the entity belongs; if "
+        "false, the expected value will be relative to the entities directory; if null, the "
+        "expected value will be relative to the highest common ancestor of the tag paths. "
+        "Files with a single tag will exhibit the same behaviour for `True` and `None`.",
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
@@ -159,14 +159,20 @@ class ValidationConfig(Config):
         entity_id = None
 
         for key, dep in entity.entity_dependencies:
-            if dep in self.KNOWN_ENTITY_IDS or "invaliddependency" in entity.suppressions__.get(
-                key, ()
+            if (
+                dep in self.KNOWN_ENTITY_IDS
+                or "invaliddependency"
+                in entity.suppressions__.get(
+                    key,
+                    (),
+                )
             ):
                 continue
 
             if entity_id is None:
                 entity_id = DocumentationConfig.get_for_package(self.package).get_id(
-                    entity, prefix_domain=True
+                    entity,
+                    prefix_domain=True,
                 )
 
             self.issues[entity.file__].append(InvalidDependencyError(entity_id, dep))

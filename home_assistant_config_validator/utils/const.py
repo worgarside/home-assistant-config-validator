@@ -23,7 +23,8 @@ NULL_PATH: Final[Path] = Path("/dev/null")
 
 SNAKE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$", flags=re.IGNORECASE
+    r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$",
+    flags=re.IGNORECASE,
 )
 
 
