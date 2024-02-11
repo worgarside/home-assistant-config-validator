@@ -1,5 +1,4 @@
 """Validate Home Assistant configurations."""
-
 from __future__ import annotations
 
 import sys
@@ -22,7 +21,7 @@ def main() -> None:
     args.parse_arguments()
 
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = defaultdict(
-        lambda: defaultdict(list)
+        lambda: defaultdict(list),
     )
 
     for pkg in Package.get_packages():

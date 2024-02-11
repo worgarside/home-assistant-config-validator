@@ -139,7 +139,8 @@ class Entity(BaseModel):
 
     @staticmethod
     def search_comments(  # noqa: PLR0912
-        node: CommentedBase, suppressions: dict[str, dict[str, set[str | None]]]
+        node: CommentedBase,
+        suppressions: dict[str, dict[str, set[str | None]]],
     ) -> None:
         """Search for HACV comments in a YAML file."""
         try:
@@ -155,7 +156,9 @@ class Entity(BaseModel):
             except IndexError:
                 continue
 
-            for eol_comment in eol_comments if isinstance(eol_comments, list) else (eol_comments,):
+            for eol_comment in (
+                eol_comments if isinstance(eol_comments, list) else (eol_comments,)
+            ):
                 if (comment_value := eol_comment.value).startswith("# hacv disable: "):
                     for suppressed, argument in parse_hacv_comment(comment_value):
                         suppressions[key][suppressed].add(argument)
@@ -358,7 +361,8 @@ class Secret(Tag[str]):
             )
 
         raise ValueError(  # noqa: TRY003
-            f"Secret {self.secret_id!r} not found in" f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
+            f"Secret {self.secret_id!r} not found in"
+            f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
         )
 
 
@@ -511,7 +515,10 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
 
         file_content["file__"] = file.resolve()
 
-        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
+        yield Entity.model_validate_file_content(
+            file_content,
+            comments_in_file=comments_in_file,
+        )
 
 
 @dataclass
@@ -599,7 +606,10 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
             isolate_tags_from_files=True,
         )
         file_content["file__"] = file.resolve()
-        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
+        yield Entity.model_validate_file_content(
+            file_content,
+            comments_in_file=comments_in_file,
+        )
 
 
 @dataclass
@@ -641,7 +651,10 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         )
         file_content["file__"] = file.resolve()
 
-        yield Entity.model_validate_file_content(file_content, comments_in_file=comments_in_file)
+        yield Entity.model_validate_file_content(
+            file_content,
+            comments_in_file=comments_in_file,
+        )
 
 
 def load_yaml(

@@ -93,7 +93,8 @@ def format_output(
 
                 issue_line = " ".join(
                     (
-                        fmt_str(path.relative_to(const.REPO_PATH), "bold") + fmt_str(":", "cyan"),
+                        fmt_str(path.relative_to(const.REPO_PATH), "bold")
+                        + fmt_str(":", "cyan"),
                         exc_typ,
                         exc.fmt_msg,
                     ),
