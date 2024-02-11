@@ -6,8 +6,6 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
 
-from wg_utilities.loggers import add_stream_handler
-
 from . import const
 from .exception import (
     FixableConfigurationError,
@@ -15,8 +13,6 @@ from .exception import (
 )
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
 
 
 def format_output(

@@ -40,7 +40,6 @@ from wg_utilities.functions.json import (
     process_json_object,
     traverse_dict,
 )
-from wg_utilities.loggers import add_stream_handler
 
 from . import const
 from .exception import (
@@ -54,8 +53,7 @@ from .exception import (
 )
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
+
 
 F = TypeVar("F", JSONObj, list[JSONObj])
 

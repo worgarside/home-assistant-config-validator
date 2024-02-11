@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
@@ -33,8 +32,6 @@ from .base import Config, replace_non_alphanumeric
 from .documentation import DocumentationConfig
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
 
 
 class Case(StrEnum):

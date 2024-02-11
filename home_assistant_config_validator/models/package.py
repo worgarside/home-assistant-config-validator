@@ -10,7 +10,6 @@ from pathlib import Path, PurePath
 from typing import Any, ClassVar, Self
 
 from wg_utilities.functions.json import JSONObj, process_json_object
-from wg_utilities.loggers import add_stream_handler
 
 from home_assistant_config_validator.utils import (
     Entity,
@@ -23,8 +22,6 @@ from home_assistant_config_validator.utils import (
 )
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
-add_stream_handler(LOGGER)
 
 
 @dataclass
