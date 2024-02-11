@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field
 
@@ -12,6 +12,7 @@ from home_assistant_config_validator.utils import (
     const,
     parse_jsonpath,
 )
+from home_assistant_config_validator.utils.exception import FileContentError
 
 from .base import Config
 
@@ -29,23 +30,33 @@ class DocumentationConfig(Config):
 
     extra: list[JSONPathStr] = Field(default_factory=list)
 
-    def get_description(self, entity: Entity, /) -> Any:
+    def get_description(self, entity: Entity, /) -> str:
         """Return the description of the entity."""
         if self.description and (match := parse_jsonpath(self.description).find(entity)):
-            return match[0].value
+            return str(match[0].value)
 
         return "*No description provided*"
 
-    def get_id(self, entity: Entity, /, *, default: Any = None) -> Any:
+    def get_id(self, entity: Entity, /, *, prefix_domain: bool = False) -> str:
         """Return the ID of the entity."""
-        if self.id and (match := parse_jsonpath(self.id).find(entity)):
-            return match[0].value
+        if self.id == "__file__":
+            id_ = entity.file__.stem
+        elif match := parse_jsonpath(self.id).find(entity):
+            id_ = str(match[0].value)
+        else:
+            raise FileContentError(
+                entity.file__,
+                f"ID `{self.id}` not found in entity",
+            )
 
-        return default
+        if prefix_domain:
+            return f"{self.package.name}.{id_}"
 
-    def get_name(self, entity: Entity, /, *, default: Any = None) -> Any:
+        return id_
+
+    def get_name(self, entity: Entity, /, *, default: str | None = None) -> str | None:
         """Return the name of the entity."""
         if self.name and (match := parse_jsonpath(self.name).find(entity)):
-            return match[0].value
+            return str(match[0].value)
 
         return default

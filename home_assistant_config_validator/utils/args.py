@@ -8,10 +8,10 @@ from os import getenv
 from pathlib import Path
 from typing import Literal
 
-from home_assistant_config_validator.utils.const import REPO_PATH
+from home_assistant_config_validator.utils.const import EXT, REPO_PATH
 
 AUTOFIX: bool = getenv("AUTOFIX", "0") == "1"
-HA_CONFIG: Path = REPO_PATH / "configuration.yaml"
+HA_CONFIG: Path = REPO_PATH.joinpath("configuration").with_suffix(EXT)
 LOG_LEVEL: Literal[10, 20, 30, 40, 50] = getLevelNamesMapping()[  # type: ignore[assignment]
     getenv("LOG_LEVEL", "WARNING").upper()
 ]
@@ -38,7 +38,7 @@ def parse_arguments() -> None:
         "--ha-config-path",
         type=Path,
         required=False,
-        help="Path to Home Assistant configuration.yaml",
+        help="Path to Home Assistant configuration YAML",
         default=HA_CONFIG,
     )
 

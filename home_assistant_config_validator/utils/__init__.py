@@ -9,6 +9,7 @@ from .exception import (
     FileContentTypeError,
     HomeAssistantConfigurationError,
     InvalidConfigurationError,
+    InvalidDependencyError,
     InvalidFieldTypeError,
     JsonPathNotFoundError,
     PackageDefinitionError,
@@ -34,7 +35,7 @@ from .ha_yaml_loader import (
     set_json_value,
     subclasses_recursive,
 )
-from .helpers import KnownEntityType, check_known_entity_usages, format_output
+from .helpers import format_output
 
 __all__ = [
     "const",
@@ -46,6 +47,7 @@ __all__ = [
     "EntityGenerator",
     "DeclutteringTemplateNotFoundError",
     "UserPCHConfigurationError",
+    "InvalidDependencyError",
     "HomeAssistantConfigurationError",
     "UnusedFileError",
     "FileContentError",
@@ -53,9 +55,7 @@ __all__ = [
     "EntityDefinitionError",
     "PackageNotFoundError",
     "PackageDefinitionError",
-    "check_known_entity_usages",
     "format_output",
-    "KnownEntityType",
     "Secret",
     "InvalidFieldTypeError",
     "TagWithPath",
