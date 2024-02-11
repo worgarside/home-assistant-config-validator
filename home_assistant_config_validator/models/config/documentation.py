@@ -26,7 +26,7 @@ class DocumentationConfig(Config):
 
     description: str | None = Field(default=None)
     name: str = Field(default="name")
-    id: str = Field(default="id")
+    id: str | list[str] = Field(default="id")
 
     extra: list[JSONPathStr] = Field(default_factory=list)
 
@@ -37,13 +37,28 @@ class DocumentationConfig(Config):
 
         return "*No description provided*"
 
+    @staticmethod
+    def _get_id(entity: Entity, id_path_or_opts: str | list[str], /) -> str | None:
+        if id_path_or_opts == "__file__":
+            return entity.file__.stem
+
+        if isinstance(id_path_or_opts, str) and (
+            match := parse_jsonpath(id_path_or_opts).find(entity)
+        ):
+            return str(match[0].value)
+
+        if isinstance(id_path_or_opts, list):
+            for id_opt in id_path_or_opts:
+                if id_ := DocumentationConfig._get_id(entity, id_opt):
+                    return id_
+
+        return None
+
     def get_id(self, entity: Entity, /, *, prefix_domain: bool = False) -> str:
         """Return the ID of the entity."""
-        if self.id == "__file__":
-            id_ = entity.file__.stem
-        elif match := parse_jsonpath(self.id).find(entity):
-            id_ = str(match[0].value)
-        else:
+        id_: str | None = self._get_id(entity, self.id)
+
+        if id_ is None:
             raise FileContentError(
                 entity.file__,
                 f"ID `{self.id}` not found in entity",
