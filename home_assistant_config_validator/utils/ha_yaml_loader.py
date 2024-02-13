@@ -102,7 +102,7 @@ class Entity(BaseModel):
             str,  # suppressed
             tuple[str | None],  # argument(s)
         ],
-    ] = Field(default_factory=dict)
+    ] = Field(default_factory=dict, exclude=True)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
@@ -115,7 +115,7 @@ class Entity(BaseModel):
         comments_in_file: bool,
     ) -> Self:
         """Parse the file content and extract any comments."""
-        if comments_in_file is not False:
+        if comments_in_file:
             suppressions: dict[
                 str,
                 dict[str, set[str | None]],

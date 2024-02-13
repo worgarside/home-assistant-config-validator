@@ -11,6 +11,7 @@ from .exception import (
     InvalidConfigurationError,
     InvalidDependencyError,
     InvalidFieldTypeError,
+    InvalidTemplateError,
     JsonPathNotFoundError,
     PackageDefinitionError,
     PackageNotFoundError,
@@ -20,7 +21,7 @@ from .exception import (
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
     UnusedFileError,
-    UserPCHConfigurationError,
+    UserPCHConfigurationError,InvalidTemplateVarsError
 )
 from .ha_yaml_loader import (
     Entity,
@@ -57,7 +58,7 @@ __all__ = [
     "PackageNotFoundError",
     "PackageDefinitionError",
     "format_output",
-    "Secret",
+    "Secret","InvalidTemplateVarsError",
     "InvalidFieldTypeError",
     "TagWithPath",
     "Tag",
@@ -73,4 +74,5 @@ __all__ = [
     "ShouldMatchFilePathError",
     "subclasses_recursive",
     "Include",
+    "InvalidTemplateError",
 ]
