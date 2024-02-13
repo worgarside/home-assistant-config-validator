@@ -217,19 +217,13 @@ class Entity(BaseModel):
     @cached_property
     def entity_dependencies(self) -> set[tuple[str, str]]:
         """Get the entities consumed by this entity."""
-        deps = set()
+        deps: set[tuple[str, str]] = set()
 
-        def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
-            if (
-                const.ENTITY_ID_PATTERN.fullmatch(value)
-                and value.split(".")[0] in const.YAML_ONLY_PACKAGES
-                and value.split(".")[1] not in const.COMMON_SERVICES
-            ):
-                deps.add((dict_key or "", value))
-
-            return value
-
-        traverse_dict(self.model_dump(), target_type=str, target_processor_func=_cb)
+        traverse_dict(
+            self.model_dump(),
+            target_type=str,
+            target_processor_func=const.create_entity_id_check_callback(deps),
+        )
 
         return deps
 
@@ -268,8 +262,6 @@ class Tag(ABC, Generic[ResTo]):
     def resolve(
         self,
         source_file: Path,
-        *,
-        resolve_tags: bool,
     ) -> ResTo:
         """Load the data for the tag."""
         raise NotImplementedError
@@ -277,41 +269,6 @@ class Tag(ABC, Generic[ResTo]):
     def resolves_to(self, __type: type, /) -> bool:
         """Return whether the tag resolves to a given type."""
         return __type == self.RESOLVES_TO
-
-
-@dataclass
-class Include(Tag[JSONObj | list[JSONObj]]):
-    """Return the content of a file."""
-
-    path: PurePath
-
-    TAG: ClassVar[Literal["!include"]] = "!include"
-    file: Path = field(init=False)
-
-    def resolve(
-        self,
-        source_file: Path = const.NULL_PATH,
-        *,
-        resolve_tags: bool,
-    ) -> JSONObj | list[JSONObj]:
-        """Load the data from the path.
-
-        Args:
-            source_file (Path): The path to load the data relative to.
-            resolve_tags (bool): Whether to resolve tags in the loaded data.
-
-        Returns:
-            JSONObj | JSONArr: The data from the path.
-        """
-        if source_file == const.NULL_PATH:
-            source_file = self.file
-        elif not source_file.is_file():
-            raise FileNotFoundError(source_file)
-
-        return load_yaml(
-            source_file.parent / self.path,
-            resolve_tags=resolve_tags,
-        )[0]
 
 
 @dataclass
@@ -346,7 +303,7 @@ class Secret(Tag[str]):
             ValueError: If the secret is not found in the file and no fallback value
                 is provided.
         """
-        fake_secrets, _ = load_yaml(self.FAKE_SECRETS_PATH, resolve_tags=False)
+        fake_secrets, _ = load_yaml(self.FAKE_SECRETS_PATH)
 
         if isinstance(fake_secrets, dict):
             if (fake_secret := fake_secrets.get(self.secret_id, fallback_value)) is not None:
@@ -413,8 +370,6 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
     def resolve(
         self,
         source_file: Path = const.NULL_PATH,
-        *,
-        resolve_tags: bool,
     ) -> ResToPath:
         if source_file == const.NULL_PATH:
             source_file = self.file
@@ -427,7 +382,6 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
             file_content: F
             file_content, _ = load_yaml(
                 file,
-                resolve_tags=resolve_tags,
                 validate_content_type=self.FILE_CONTENT_TYPE,
             )
 
@@ -437,17 +391,15 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
                     f"`{self.TAG}` expects each file to contain a {self.FILE_CONTENT_TYPE}",
                 )
 
-            if resolve_tags is False:
-                # If tags aren't being resolved, attach a file path to them for
-                # resolution later
-                process_json_object(  # type: ignore[misc]
-                    file_content,
-                    target_type=TagWithPath,
-                    target_processor_func=TagWithPath.attach_file_to_tag(file),
-                    pass_on_fail=False,
-                    log_op_func_failures=False,
-                    single_keys_to_remove=["sensor"],
-                )
+            # Attach a file path to the tags for resolution later
+            process_json_object(  # type: ignore[misc]
+                file_content,
+                target_type=TagWithPath,
+                target_processor_func=TagWithPath.attach_file_to_tag(file),
+                pass_on_fail=False,
+                log_op_func_failures=False,
+                single_keys_to_remove=["sensor"],
+            )
 
             data = self._add_file_content_to_data(data, file, file_content)
 
@@ -469,6 +421,53 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
 
     def __hash__(self) -> int:
         return hash(self.path)
+
+
+@dataclass
+class Include(TagWithPath[JSONObj, JSONObj]):
+    """Return the content of a file."""
+
+    path: Path
+
+    TAG: ClassVar[Literal["!include"]] = "!include"
+    file: Path = field(init=False)
+
+    def resolve(
+        self,
+        source_file: Path = const.NULL_PATH,
+    ) -> JSONObj:
+        """Load the data from the path.
+
+        Args:
+            source_file (Path): The path to load the data relative to.
+            resolve_tags (bool): Whether to resolve tags in the loaded data.
+
+        Returns:
+            JSONObj | JSONArr: The data from the path.
+        """
+        if source_file == const.NULL_PATH:
+            source_file = self.file
+        elif not source_file.is_file():
+            raise FileNotFoundError(source_file)
+
+        return load_yaml(source_file.parent / self.path)[0]
+
+    def __contains__(self, item: str) -> bool:
+        """Check if the item is in the resolved data.
+
+        Mainly here for Lovelace validation.
+        """
+        return item in self.resolve()
+
+    def _add_file_content_to_data(
+        self,
+        *_: Any,
+        **__: Any,
+    ) -> JSONObj:
+        raise NotImplementedError
+
+    def _get_entities_from_file(self, *_: Any, **__: Any) -> EntityGenerator:
+        raise NotImplementedError
 
 
 @dataclass
@@ -506,7 +505,6 @@ class IncludeDirList(TagWithPath[JSONObj, list[JSONObj]]):
     ) -> EntityGenerator:
         file_content, comments_in_file = load_yaml(
             file,
-            resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
             isolate_tags_from_files=True,
         )
@@ -555,7 +553,6 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         file_content: list[JSONObj]
         file_content, comments_in_file = load_yaml(
             file,
-            resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
             isolate_tags_from_files=True,
         )
@@ -599,7 +596,6 @@ class IncludeDirMergeNamed(TagWithPath[JSONObj, JSONObj]):
     ) -> EntityGenerator:
         file_content, comments_in_file = load_yaml(
             file,
-            resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
             isolate_tags_from_files=True,
         )
@@ -643,7 +639,6 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
     ) -> EntityGenerator:
         file_content, comments_in_file = load_yaml(
             file,
-            resolve_tags=False,
             validate_content_type=self.FILE_CONTENT_TYPE,
             isolate_tags_from_files=True,
         )
@@ -658,7 +653,6 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
 def load_yaml(
     path: Path,
     *,
-    resolve_tags: bool,
     validate_content_type: type[F] | None = None,
     isolate_tags_from_files: bool = False,
 ) -> tuple[F, bool]:
@@ -666,8 +660,6 @@ def load_yaml(
 
     Args:
         path (Path): The path to the YAML file.
-        resolve_tags (bool, optional): Whether to resolve tags in the YAML file.
-            Defaults to False.
         validate_content_type (type[F] | None, optional): The type to validate the
             content of the YAML file against. Defaults to None.
         isolate_tags_from_files (bool, optional): Whether to isolate tags from files.
@@ -694,18 +686,7 @@ def load_yaml(
     ):
         raise FileContentTypeError(path, content, validate_content_type)
 
-    if resolve_tags:
-        process_json_object(
-            content,
-            target_type=Tag,
-            target_processor_func=lambda tag, **_: tag.resolve(  # type: ignore[arg-type]
-                path,
-                resolve_tags=resolve_tags,
-            ),
-            pass_on_fail=False,
-            log_op_func_failures=False,
-        )
-    elif not isolate_tags_from_files:
+    if not isolate_tags_from_files:
         process_json_object(  # type: ignore[misc]
             content,
             target_type=TagWithPath,

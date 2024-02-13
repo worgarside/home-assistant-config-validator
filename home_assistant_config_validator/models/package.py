@@ -102,7 +102,6 @@ class Package:
         package_config: JSONObj
         package_config, _ = load_yaml(
             file,
-            resolve_tags=False,
             validate_content_type=JSONObj,
         )
 

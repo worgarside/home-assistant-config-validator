@@ -21,7 +21,7 @@ PCH_CONFIG: Path = REPO_PATH / "config_validator.yml"
 VALIDATE_ALL_PACKAGES: bool = getenv("VALIDATE_ALL_PACKAGES", "0") == "1"
 
 
-def parse_arguments() -> None:
+def parse_arguments(*, validate_all_packages_override: bool | None = None) -> None:
     """Parse arguments for the configuration validator."""
     global AUTOFIX, HA_CONFIG, LOG_LEVEL, PCH_CONFIG, VALIDATE_ALL_PACKAGES  # noqa: PLW0603
 
@@ -58,7 +58,9 @@ def parse_arguments() -> None:
         "--validate-all",
         action="store_true",
         help="Validate all packages (requires exactly one configuration per package).",
-        default=VALIDATE_ALL_PACKAGES,
+        default=VALIDATE_ALL_PACKAGES
+        if validate_all_packages_override is None
+        else validate_all_packages_override,
     )
 
     parser.add_argument(

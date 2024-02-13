@@ -25,6 +25,7 @@ from .exception import (
 from .ha_yaml_loader import (
     Entity,
     EntityGenerator,
+    Include,
     JSONPathStr,
     Secret,
     Tag,
@@ -71,4 +72,5 @@ __all__ = [
     "ShouldMatchFileNameError",
     "ShouldMatchFilePathError",
     "subclasses_recursive",
+    "Include",
 ]
