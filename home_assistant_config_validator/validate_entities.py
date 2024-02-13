@@ -32,12 +32,12 @@ def main() -> None:
 
         all_issues[pkg.pkg_name].update(validator.validate_package())
 
-    if not all_issues:
-        sys.exit(0)
+    if any(all_issues.values()):
+        print(format_output(all_issues), file=sys.stderr)
 
-    print(format_output(all_issues), file=sys.stderr)
+        sys.exit(1)
 
-    sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

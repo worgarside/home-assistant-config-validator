@@ -9,13 +9,18 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+from jinja2 import Environment, TemplateError, meta
+from jinja2.defaults import BLOCK_START_STRING, COMMENT_START_STRING, VARIABLE_START_STRING
 from pydantic import BaseModel, ConfigDict, Field
+from wg_utilities.functions import traverse_dict
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
     Entity,
     InvalidConfigurationError,
     InvalidDependencyError,
+    InvalidTemplateError,
+    InvalidTemplateVarsError,
     JsonPathNotFoundError,
     JSONPathStr,
     ShouldBeEqualError,
@@ -130,6 +135,9 @@ class ValidationConfig(Config):
 
     KNOWN_ENTITY_IDS: ClassVar[tuple[str, ...]]
 
+    # No autoescape needed
+    JINJA_ENV: ClassVar[Environment] = Environment(extensions=["jinja2.ext.loopcontrols"])  # noqa: S701
+
     package: Package
 
     should_be_equal: list[tuple[JSONPathStr, JSONPathStr]] = Field(default_factory=list)
@@ -153,9 +161,92 @@ class ValidationConfig(Config):
                 for entity in pkg.entities
             )
 
+            for jf in const.JINJA_FILTERS:
+                # Not actually running the templates, so the filter function is immaterial
+                self.JINJA_ENV.filters[jf] = lambda x: x
+
+            for jt in const.JINJA_TESTS:
+                self.JINJA_ENV.tests[jt] = lambda x: x
+
+    def _validate_jinja2_templates(self, entity: Entity, /) -> None:
+        """Validate that any Jinja2 Templates have valid syntax."""
+        entity_obj = entity.model_dump()
+
+        def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
+            if (
+                VARIABLE_START_STRING not in value
+                and BLOCK_START_STRING not in value
+                and COMMENT_START_STRING not in value
+            ):
+                return value
+
+            try:
+                template = ValidationConfig.JINJA_ENV.parse(value)
+            except TemplateError as exc:
+                self.issues[entity.file__].append(InvalidTemplateError(exc, dict_key=dict_key))
+                return value
+
+            try:
+                undeclared_variables = (
+                    meta.find_undeclared_variables(template) - const.JINJA_VARS
+                )
+            except TemplateError as exc:
+                self.issues[entity.file__].append(InvalidTemplateError(exc, dict_key=dict_key))
+                return value
+
+            if undeclared_variables:
+
+                def _remove_known_variables(
+                    value: dict[str, str] | str,
+                    dict_key: str | None = None,
+                    **_: Any,
+                ) -> dict[str, str] | str:
+                    nonlocal undeclared_variables
+                    if dict_key in ("variables", "response_variable"):
+                        if isinstance(value, str):
+                            undeclared_variables -= {value}
+                        else:
+                            undeclared_variables -= set(value.keys())
+
+                    return value
+
+                traverse_dict(
+                    entity_obj,
+                    target_type=dict,
+                    target_processor_func=_remove_known_variables,
+                    pass_on_fail=False,
+                )
+
+                traverse_dict(
+                    entity_obj,
+                    target_type=str,
+                    target_processor_func=_remove_known_variables,
+                    pass_on_fail=False,
+                )
+
+                if self.package.name == "script":
+                    undeclared_variables -= set(entity_obj.get("fields", {}).keys())
+
+                if undeclared_variables:
+                    self.issues[entity.file__].append(
+                        InvalidTemplateVarsError(
+                            undeclared_vars=undeclared_variables,
+                            dict_key=dict_key,
+                        ),
+                    )
+
+            return value
+
+        traverse_dict(
+            entity_obj,
+            target_type=str,
+            target_processor_func=_cb,
+            pass_on_fail=False,
+        )
+
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
-        if "invaliddependency" in entity.suppressions__.get("*", ()):
+        if InvalidDependencyError.suppression_comment() in entity.suppressions__.get("*", ()):
             return
 
         entity_id = None
@@ -163,7 +254,7 @@ class ValidationConfig(Config):
         for key, dep in entity.entity_dependencies:
             if (
                 dep in self.KNOWN_ENTITY_IDS
-                or "invaliddependency"
+                or InvalidDependencyError.suppression_comment()
                 in entity.suppressions__.get(
                     key,
                     (),
@@ -182,8 +273,18 @@ class ValidationConfig(Config):
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for json_path_str_1, json_path_str_2 in self.should_be_equal:
             try:
-                if (value_1 := get_json_value(entity_yaml, json_path_str_1)) != (
-                    value_2 := get_json_value(entity_yaml, json_path_str_2)
+                if (
+                    value_1 := get_json_value(
+                        entity_yaml,
+                        json_path_str_1,
+                        default=const.INEQUAL,
+                    )
+                ) != (
+                    value_2 := get_json_value(
+                        entity_yaml,
+                        json_path_str_2,
+                        default=const.INEQUAL,
+                    )
                 ):
                     self.issues[entity_yaml.file__].append(
                         ShouldBeEqualError(
@@ -205,7 +306,7 @@ class ValidationConfig(Config):
                     default=const.INEQUAL,
                 )
             ) != hardcoded_value and (
-                "shouldbehardcoded"
+                ShouldBeHardcodedError.suppression_comment()
                 not in entity_yaml.suppressions__.get(json_path_str.split(".")[-1], ())
             ):
                 self.issues[entity_yaml.file__].append(
@@ -230,13 +331,19 @@ class ValidationConfig(Config):
 
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
-        if "shouldmatchfilename" in entity_yaml.suppressions__.get("*", ()):
+        if ShouldMatchFileNameError.suppression_comment() in entity_yaml.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         for json_path_str in self.should_match_filename:
-            if "shouldmatchfilename" in entity_yaml.suppressions__.get(
-                json_path_str.split(".")[-1],
-                (),
+            if (
+                ShouldMatchFileNameError.suppression_comment()
+                in entity_yaml.suppressions__.get(
+                    json_path_str.split(".")[-1],
+                    (),
+                )
             ):
                 continue
             try:
@@ -258,13 +365,19 @@ class ValidationConfig(Config):
                 continue
 
     def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
-        if "shouldmatchfilepath" in entity_yaml.suppressions__.get("*", ()):
+        if ShouldMatchFilePathError.suppression_comment() in entity_yaml.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         for json_path_str, config in self.should_match_filepath.items():
-            if "shouldmatchfilepath" in entity_yaml.suppressions__.get(
-                json_path_str.split(".")[-1],
-                (),
+            if (
+                ShouldMatchFilePathError.suppression_comment()
+                in entity_yaml.suppressions__.get(
+                    json_path_str.split(".")[-1],
+                    (),
+                )
             ):
                 continue
 
@@ -339,10 +452,11 @@ class ValidationConfig(Config):
     def validators(self) -> tuple[Callable[[Entity], None], ...]:
         """Get the validation functions for the package."""
         return (
-            self._validate_known_entity_ids,
-            self._validate_should_be_equal,
-            self._validate_should_be_hardcoded,
-            self._validate_should_exist,
-            self._validate_should_match_filename,
-            self._validate_should_match_filepath,
+            self._validate_jinja2_templates,
+            # self._validate_known_entity_ids,
+            # self._validate_should_be_equal,
+            # self._validate_should_be_hardcoded,
+            # self._validate_should_exist,
+            # self._validate_should_match_filename,
+            # self._validate_should_match_filepath,
         )
