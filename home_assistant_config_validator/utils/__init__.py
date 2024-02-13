@@ -11,6 +11,8 @@ from .exception import (
     InvalidConfigurationError,
     InvalidDependencyError,
     InvalidFieldTypeError,
+    InvalidTemplateError,
+    InvalidTemplateVarsError,
     JsonPathNotFoundError,
     PackageDefinitionError,
     PackageNotFoundError,
@@ -58,6 +60,7 @@ __all__ = [
     "PackageDefinitionError",
     "format_output",
     "Secret",
+    "InvalidTemplateVarsError",
     "InvalidFieldTypeError",
     "TagWithPath",
     "Tag",
@@ -73,4 +76,5 @@ __all__ = [
     "ShouldMatchFilePathError",
     "subclasses_recursive",
     "Include",
+    "InvalidTemplateError",
 ]

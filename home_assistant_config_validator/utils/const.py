@@ -31,7 +31,7 @@ ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 
 
-COMMON_SERVICES = (
+COMMON_SERVICES: Final[tuple[str, ...]] = (
     "decrement",
     "increment",
     "pause",
@@ -49,6 +49,83 @@ COMMON_SERVICES = (
     "turn_off",
     "turn_on",
 )
+
+JINJA_FILTERS: Final[tuple[str, ...]] = (
+    "round",
+    "multiply",
+    "log",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "atan2",
+    "sqrt",
+    "as_datetime",
+    "as_timedelta",
+    "as_timestamp",
+    "as_local",
+    "timestamp_custom",
+    "timestamp_local",
+    "timestamp_utc",
+    "to_json",
+    "from_json",
+    "is_defined",
+    "average",
+    "random",
+    "base64_encode",
+    "base64_decode",
+    "ordinal",
+    "regex_match",
+    "regex_replace",
+    "regex_search",
+    "regex_findall",
+    "regex_findall_index",
+    "bitwise_and",
+    "bitwise_or",
+    "pack",
+    "unpack",
+    "ord",
+    "is_number",
+    "float",
+    "int",
+    "slugify",
+    "iif",
+    "bool",
+    "version",
+    "contains",
+)
+
+JINJA_TESTS: Final[tuple[str, ...]] = (
+    "is_number",
+    "match",
+    "search",
+    "contains",
+)
+
+JINJA_VARS: Final[set[str]] = {
+    "as_timestamp",
+    "distance",
+    "has_value",
+    "iif",
+    "is_number",
+    "is_state",
+    "is_state_attr",
+    "max",
+    "min",
+    "now",
+    "repeat",
+    "state_attr",
+    "states",
+    "this",
+    "timedelta",
+    "today_at",
+    "trigger",
+    "utcnow",
+    "value_json",
+    "wait",
+}
 
 YAML_ONLY_PACKAGES: Final[tuple[str, ...]] = (
     "automation",
@@ -117,4 +194,5 @@ __all__ = [
     "YAML_ONLY_PACKAGES",
     "create_entity_id_check_callback",
     "LOVELACE_ARCHIVE_DIR",
+    "JINJA_VARS",
 ]
