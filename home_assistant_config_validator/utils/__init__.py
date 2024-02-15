@@ -39,6 +39,14 @@ from .ha_yaml_loader import (
     subclasses_recursive,
 )
 from .helpers import format_output
+from .json_processor import (
+    Callback,
+    JProc,
+    JSONArr,
+    JSONObj,
+    JSONProcessor,
+    JSONVal,
+)
 
 __all__ = [
     "const",
@@ -77,4 +85,10 @@ __all__ = [
     "subclasses_recursive",
     "Include",
     "InvalidTemplateError",
+    "Callback",
+    "JSONProcessor",
+    "JProc",
+    "JSONVal",
+    "JSONObj",
+    "JSONArr",
 ]

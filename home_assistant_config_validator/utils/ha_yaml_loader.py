@@ -32,14 +32,6 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from ruamel.yaml import YAML, ScalarNode
 from ruamel.yaml.comments import CommentedBase, CommentedMap, CommentedSeq
 from ruamel.yaml.representer import Representer
-from wg_utilities.functions.json import (
-    JSONArr,
-    JSONObj,
-    JSONVal,
-    TargetProcessorFunc,
-    process_json_object,
-    traverse_dict,
-)
 
 from . import const
 from .exception import (
@@ -51,6 +43,7 @@ from .exception import (
     JsonPathNotFoundError,
     UserPCHConfigurationError,
 )
+from .json_processor import JProc, JSONArr, JSONObj, JSONVal
 
 LOGGER = getLogger(__name__)
 
@@ -219,11 +212,7 @@ class Entity(BaseModel):
         """Get the entities consumed by this entity."""
         deps: set[tuple[str, str]] = set()
 
-        traverse_dict(
-            self.model_dump(),
-            target_type=str,
-            target_processor_func=const.create_entity_id_check_callback(deps),
-        )
+        JProc.from_cache("entity_id_check").process(self.model_dump(), entity_ids=deps)
 
         return deps
 
@@ -330,24 +319,16 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         """Post-initialisation."""
         self.path = PurePath(self.path)
 
-    @classmethod
-    def attach_file_to_tag(
-        cls,
-        file: Path,
-    ) -> TargetProcessorFunc[Tag[ResToPath]]:
-        def _cb(
-            value: Tag[ResToPath],
-            *,
-            dict_key: str | None = None,
-            list_index: int | None = None,
-        ) -> Tag[ResToPath]:
-            _ = dict_key, list_index
-            if not hasattr(value, "file") or not value.file or value.file == const.NULL_PATH:
-                value.file = file.resolve(strict=True)
+    @staticmethod
+    def _attach_file_to_tag(
+        value: Tag[ResToPath],
+        **kwargs: Any,
+    ) -> Tag[ResToPath]:
+        if not hasattr(value, "file") or not value.file or value.file == const.NULL_PATH:
+            file: Path = kwargs["file"]
+            value.file = file.resolve(strict=True)
 
-            return value
-
-        return _cb
+        return value
 
     @abstractmethod
     def _add_file_content_to_data(
@@ -392,14 +373,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
                 )
 
             # Attach a file path to the tags for resolution later
-            process_json_object(  # type: ignore[misc]
-                file_content,
-                target_type=TagWithPath,
-                target_processor_func=TagWithPath.attach_file_to_tag(file),
-                pass_on_fail=False,
-                log_op_func_failures=False,
-                single_keys_to_remove=["sensor"],
-            )
+            JProc.from_cache("attach_file_to_tag").process(file_content, file=file)
 
             data = self._add_file_content_to_data(data, file, file_content)
 
@@ -560,7 +534,10 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         for elem in file_content:
             elem["file__"] = file.resolve()
 
-            yield Entity.model_validate_file_content(elem, comments_in_file=comments_in_file)
+            yield Entity.model_validate_file_content(
+                elem,
+                comments_in_file=comments_in_file,
+            )
 
 
 @dataclass
@@ -650,6 +627,19 @@ class IncludeDirNamed(TagWithPath[JSONObj, JSONObj]):
         )
 
 
+def _get_entity_generators(
+    value: TagWithPath[Any, Any],
+    **kwargs: Any,
+) -> Any:
+    kwargs["entity_generators"].append(value.entity_generator)
+
+    # Only save tags from the package file
+    if value.file == kwargs["file"]:
+        kwargs["tag_paths"].append(value.absolute_path)
+
+    return value
+
+
 def load_yaml(
     path: Path,
     *,
@@ -670,6 +660,17 @@ def load_yaml(
     Returns:
         JSONObj: The content of the YAML file as a JSON object
     """
+    if not JProc.has_cache_entry("attach_file_to_tag"):
+        JProc(
+            {TagWithPath: [JProc.cb(TagWithPath._attach_file_to_tag)]},
+            identifier="attach_file_to_tag",
+        )
+    if not JProc.has_cache_entry("get_entity_generators"):
+        JProc(
+            callback_mapping={TagWithPath: [JProc.cb(_get_entity_generators)]},
+            identifier="get_entity_generators",
+        )
+
     if Secret not in HAYamlLoader.representer.yaml_representers:
         add_custom_tags_to_loader(HAYamlLoader)
 
@@ -687,13 +688,7 @@ def load_yaml(
         raise FileContentTypeError(path, content, validate_content_type)
 
     if not isolate_tags_from_files:
-        process_json_object(  # type: ignore[misc]
-            content,
-            target_type=TagWithPath,
-            target_processor_func=TagWithPath.attach_file_to_tag(path),
-            pass_on_fail=False,
-            log_op_func_failures=False,
-        )
+        JProc.from_cache("attach_file_to_tag").process(content, file=path)
 
     return content, comments_in_file
 

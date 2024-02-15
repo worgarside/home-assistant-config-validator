@@ -7,19 +7,17 @@ from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger
 from pathlib import Path, PurePath
-from typing import Any, ClassVar, Self
-
-from wg_utilities.functions.json import JSONObj, process_json_object
+from typing import ClassVar, Self
 
 from home_assistant_config_validator.utils import (
     Entity,
     EntityGenerator,
     PackageDefinitionError,
     PackageNotFoundError,
-    TagWithPath,
     const,
     load_yaml,
 )
+from home_assistant_config_validator.utils.json_processor import JProc, JSONObj
 
 LOGGER = getLogger(__name__)
 
@@ -124,24 +122,11 @@ class Package:
         entity_generators: list[EntityGenerator] = []
         tag_paths: list[PurePath] = []
 
-        def _get_entity_generators(
-            tag: TagWithPath[Any, Any],
-            **_: str | int | None,
-        ) -> Any:
-            entity_generators.append(tag.entity_generator)
-
-            # Only save tags from the package file
-            if tag.file == file:
-                tag_paths.append(tag.absolute_path)
-
-            return tag
-
-        process_json_object(
+        JProc.from_cache("get_entity_generators").process(
             package_config,
-            target_type=TagWithPath,
-            target_processor_func=_get_entity_generators,  # type: ignore[arg-type]
-            pass_on_fail=False,
-            log_op_func_failures=False,
+            entity_generators=entity_generators,
+            file=file,
+            tag_paths=tag_paths,
         )
 
         if (pkg := cls.INSTANCES.get(file.stem)) is None:

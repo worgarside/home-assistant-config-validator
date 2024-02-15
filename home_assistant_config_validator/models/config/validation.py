@@ -10,9 +10,12 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from jinja2 import Environment, TemplateError, meta
-from jinja2.defaults import BLOCK_START_STRING, COMMENT_START_STRING, VARIABLE_START_STRING
+from jinja2.defaults import (
+    BLOCK_START_STRING,
+    COMMENT_START_STRING,
+    VARIABLE_START_STRING,
+)
 from pydantic import BaseModel, ConfigDict, Field
-from wg_utilities.functions import traverse_dict
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
@@ -21,6 +24,7 @@ from home_assistant_config_validator.utils import (
     InvalidDependencyError,
     InvalidTemplateError,
     InvalidTemplateVarsError,
+    JProc,
     JsonPathNotFoundError,
     JSONPathStr,
     ShouldBeEqualError,
@@ -126,6 +130,103 @@ class ShouldMatchFilepathItem(BaseModel):
         raise ValueError(self.case)
 
 
+def _remove_declared_variables(
+    value: dict[str, str],
+    **kwargs: Any,
+) -> dict[str, str] | str:
+    kwargs["undeclared_variables"] -= set(value.keys())
+    return value
+
+
+def _remove_response_variables(
+    value: str,
+    **kwargs: Any,
+) -> dict[str, str] | str:
+    kwargs["undeclared_variablesss"].remove(value)
+    return value
+
+
+# TODO tidy me up
+@JProc.callback()
+def _vj2t_cb(
+    value: str,
+    loc: int | str,
+    **kwargs: Any,
+) -> str:
+    issues: list[InvalidConfigurationError] = kwargs["issues"]
+
+    try:
+        template = ValidationConfig.JINJA_ENV.parse(value)
+    except TemplateError as exc:
+        issues.append(
+            InvalidTemplateError(exc, loc=loc),
+        )
+        return value
+
+    try:
+        undeclared_variables = meta.find_undeclared_variables(template) - const.JINJA_VARS
+    except TemplateError as exc:
+        issues.append(            InvalidTemplateError(exc, loc=loc)        )
+        return value
+
+    if undeclared_variables:
+        entity_obj: dict[str, Any] = kwargs["entity_obj"]
+        JProc.from_cache("find_template_variables").process(
+            entity_obj, undeclared_variables=undeclared_variables
+        )
+
+        if kwargs["package_name"] == "script":
+            undeclared_variables -= set(entity_obj.get("fields", {}).keys())
+
+        if undeclared_variables:
+            issues.append(
+                InvalidTemplateVarsError(
+                    undeclared_vars=undeclared_variables,
+                    loc=loc,
+                ),
+            )
+
+    return value
+
+
+JProc(
+    callback_mapping={
+        str: [
+            JProc.cb(
+                _vj2t_cb,
+                item_filter=lambda item, **_: (
+                    VARIABLE_START_STRING in item
+                    or BLOCK_START_STRING in item
+                    or COMMENT_START_STRING in item
+                ),
+            ),
+        ],
+    },
+    identifier="template_validation",
+)
+JProc(
+    {str: [JProc.cb(const.entity_id_check_callback)]},
+    identifier="entity_id_check",
+)
+JProc(
+    callback_mapping={
+        dict: [
+            JProc.cb(
+                _remove_declared_variables,
+                item_filter=lambda _, loc: loc == "variables",
+            ),
+        ],
+        str: [
+            JProc.cb(
+                _remove_response_variables,
+                item_filter=lambda _, loc: loc == "response_variable",
+            ),
+        ],
+    },
+    identifier="find_template_variables",
+)
+
+
 class ValidationConfig(Config):
     """Dataclass for a package's validator configuration."""
 
@@ -136,7 +237,10 @@ class ValidationConfig(Config):
     KNOWN_ENTITY_IDS: ClassVar[tuple[str, ...]]
 
     # No autoescape needed
-    JINJA_ENV: ClassVar[Environment] = Environment(extensions=["jinja2.ext.loopcontrols"])  # noqa: S701
+    JINJA_ENV: ClassVar[Environment] = Environment(
+        autoescape=False,  # noqa: S701
+        extensions=["jinja2.ext.loopcontrols"],
+    )
 
     package: Package
 
@@ -156,7 +260,10 @@ class ValidationConfig(Config):
         """Post-initialisation steps for the model."""
         if not hasattr(self, "KNOWN_ENTITY_IDS"):
             ValidationConfig.KNOWN_ENTITY_IDS = tuple(
-                DocumentationConfig.get_for_package(pkg).get_id(entity, prefix_domain=True)
+                DocumentationConfig.get_for_package(pkg).get_id(
+                    entity,
+                    prefix_domain=True,
+                )
                 for pkg in Package.get_packages()
                 for entity in pkg.entities
             )
@@ -172,81 +279,19 @@ class ValidationConfig(Config):
         """Validate that any Jinja2 Templates have valid syntax."""
         entity_obj = entity.model_dump()
 
-        def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
-            if (
-                VARIABLE_START_STRING not in value
-                and BLOCK_START_STRING not in value
-                and COMMENT_START_STRING not in value
-            ):
-                return value
-
-            try:
-                template = ValidationConfig.JINJA_ENV.parse(value)
-            except TemplateError as exc:
-                self.issues[entity.file__].append(InvalidTemplateError(exc, dict_key=dict_key))
-                return value
-
-            try:
-                undeclared_variables = (
-                    meta.find_undeclared_variables(template) - const.JINJA_VARS
-                )
-            except TemplateError as exc:
-                self.issues[entity.file__].append(InvalidTemplateError(exc, dict_key=dict_key))
-                return value
-
-            if undeclared_variables:
-
-                def _remove_known_variables(
-                    value: dict[str, str] | str,
-                    dict_key: str | None = None,
-                    **_: Any,
-                ) -> dict[str, str] | str:
-                    nonlocal undeclared_variables
-                    if dict_key in ("variables", "response_variable"):
-                        if isinstance(value, str):
-                            undeclared_variables -= {value}
-                        else:
-                            undeclared_variables -= set(value.keys())
-
-                    return value
-
-                traverse_dict(
-                    entity_obj,
-                    target_type=dict,
-                    target_processor_func=_remove_known_variables,
-                    pass_on_fail=False,
-                )
-
-                traverse_dict(
-                    entity_obj,
-                    target_type=str,
-                    target_processor_func=_remove_known_variables,
-                    pass_on_fail=False,
-                )
-
-                if self.package.name == "script":
-                    undeclared_variables -= set(entity_obj.get("fields", {}).keys())
-
-                if undeclared_variables:
-                    self.issues[entity.file__].append(
-                        InvalidTemplateVarsError(
-                            undeclared_vars=undeclared_variables,
-                            dict_key=dict_key,
-                        ),
-                    )
-
-            return value
-
-        traverse_dict(
+        JProc.from_cache("template_validation").process(
             entity_obj,
-            target_type=str,
-            target_processor_func=_cb,
-            pass_on_fail=False,
+            entity=entity,
+            issues=self.issues[entity.file__],
+            package_name=self.package.name,
         )
 
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
-        if InvalidDependencyError.suppression_comment() in entity.suppressions__.get("*", ()):
+        if InvalidDependencyError.suppression_comment() in entity.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         entity_id = None
@@ -327,7 +372,9 @@ class ValidationConfig(Config):
             try:
                 get_json_value(entity_yaml, json_path_str)
             except JsonPathNotFoundError as exc:
-                self.issues[entity_yaml.file__].append(ShouldExistError(json_path_str, exc))
+                self.issues[entity_yaml.file__].append(
+                    ShouldExistError(json_path_str, exc),
+                )
 
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""

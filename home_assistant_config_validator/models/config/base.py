@@ -13,10 +13,10 @@ from typing import ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
-from wg_utilities.functions.json import JSONObj
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
+from home_assistant_config_validator.utils.json_processor import JSONObj
 
 LOGGER = getLogger(__name__)
 

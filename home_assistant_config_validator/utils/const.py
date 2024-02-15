@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Any, Final, Literal
 from uuid import uuid4
 
-from wg_utilities.functions.json import TargetProcessorFunc
-
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
 EXT: Final[Literal[".yaml"]] = ".yaml"
@@ -159,25 +157,21 @@ class Inequal:
         return uuid4().int
 
 
-def create_entity_id_check_callback(
-    entity_ids: set[tuple[str, str]],
-) -> TargetProcessorFunc[str]:
-    """Create a callback to identify entity IDs.
+def entity_id_check_callback(
+    value: str,
+    loc: str | int,
+    obj_type: type,
+    **kwargs: Any,
+) -> str:
+    """Identify entity IDs in strings."""
+    if (
+        ENTITY_ID_PATTERN.fullmatch(value)
+        and value.split(".")[0] in YAML_ONLY_PACKAGES
+        and value.split(".")[1] not in COMMON_SERVICES
+    ):
+        kwargs["entity_ids"].add((str(loc or "") if obj_type is dict else "", value))
 
-    Intended as a wg_utilities.function.json.TargetProcessorFunc instance.
-    """
-
-    def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
-        if (
-            ENTITY_ID_PATTERN.fullmatch(value)
-            and value.split(".")[0] in YAML_ONLY_PACKAGES
-            and value.split(".")[1] not in COMMON_SERVICES
-        ):
-            entity_ids.add((dict_key or "", value))
-
-        return value
-
-    return _cb
+    return value
 
 
 INEQUAL = Inequal()
@@ -192,7 +186,6 @@ __all__ = [
     "INEQUAL",
     "COMMON_SERVICES",
     "YAML_ONLY_PACKAGES",
-    "create_entity_id_check_callback",
     "LOVELACE_ARCHIVE_DIR",
     "JINJA_VARS",
 ]

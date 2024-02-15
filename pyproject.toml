@@ -30,6 +30,7 @@ requires = ["poetry-core"]
 #######################
 
 [tool.mypy]
+# https://mypy.readthedocs.io/en/stable/config_file.html
 plugins = "pydantic.mypy"
 
 disallow_any_generics = true
@@ -44,6 +45,7 @@ warn_unused_configs = true
 warn_redundant_casts = true
 
 no_implicit_optional = true
+no_implicit_reexport = true
 strict_optional = true
 
 strict_equality = true
@@ -102,6 +104,7 @@ lint.select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
+"exception.py" = ["D107"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

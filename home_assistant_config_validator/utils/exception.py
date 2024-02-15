@@ -273,28 +273,22 @@ class InvalidTemplateError(InvalidConfigurationError):
     def __init__(
         self,
         jinja_exc: TemplateError,
-        /,
-        *,
-        dict_key: str | None = None,
+        loc: int | str,
     ) -> None:
         super().__init__(str(jinja_exc))
 
-        self.fmt_msg = (jinja_exc.message or "Invalid template").rstrip(".")
-
-        if dict_key:
-            self.fmt_msg += f" for field `{dict_key}`"
+        self.fmt_msg = (
+            f"{(jinja_exc.message or 'Invalid template').rstrip('.')} for field `{loc}`"
+        )
 
 
 class InvalidTemplateVarsError(InvalidConfigurationError):
     """Raised when a Jinja template has invalid/undeclared variables."""
 
-    def __init__(self, *, undeclared_vars: set[str], dict_key: str | None = None) -> None:
+    def __init__(self, *, undeclared_vars: set[str], loc: int | str) -> None:
         super().__init__(f"Undeclared Jinja template variables: {', '.join(undeclared_vars)}")
 
-        self.fmt_msg = f'`{"`, `".join(sorted(undeclared_vars))}`'
-
-        if dict_key:
-            self.fmt_msg += f" for field `{dict_key}`"
+        self.fmt_msg = f'`{"`, `".join(sorted(undeclared_vars))}` for field `{loc}`'
 
 
 __all__ = [
