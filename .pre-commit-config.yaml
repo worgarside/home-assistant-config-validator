@@ -88,7 +88,7 @@ repos:
           - jsonpath-ng==1.6.1
           - pydantic[mypy]==2.6.1
           - ruamel-yaml==0.18.6
-          - wg-utilities==5.8.4
+          - wg-utilities==5.9.0
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
