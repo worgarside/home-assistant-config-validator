@@ -406,30 +406,29 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "wg-utilities"
-version = "5.8.4"
+version = "5.11.1"
 description = "Loads of useful stuff for the things I do :)"
 optional = false
 python-versions = ">=3.11,<4.0"
 files = [
-    {file = "wg_utilities-5.8.4-py3-none-any.whl", hash = "sha256:e3c787471352af6e3b4d665d06146a43eadbe241ca9de962c9f9a0ca57b57015"},
-    {file = "wg_utilities-5.8.4.tar.gz", hash = "sha256:0ef5e119de60a787047dab907a40c53dd7912da78658be67aa3a029ffec809e1"},
+    {file = "wg_utilities-5.11.1-py3-none-any.whl", hash = "sha256:c8fdc4b702175748da33bf7aa0dfbd6007bef188e852be33a4df33e8de8f69f5"},
+    {file = "wg_utilities-5.11.1.tar.gz", hash = "sha256:fce1026acb8c36f89a1919624f0a74327733c83e8feb81c170ce9a356639373b"},
 ]
 
 [package.dependencies]
-pytz = {version = ">=2022.1", optional = true, markers = "extra == \"clients\" or extra == \"logging\" or extra == \"functions\""}
 requests = {version = ">=2.26.0", optional = true, markers = "extra == \"clients\" or extra == \"exceptions\" or extra == \"logging\""}
 
 [package.extras]
-clients = ["flask (>=2.0.2)", "pydantic (<3.0.0)", "pyjwt (>=2.6,<2.9)", "python-dotenv", "pytz (>=2022.1)", "requests (>=2.26.0)", "tzlocal"]
+clients = ["flask (>=2.0.2)", "pydantic (<3.0.0)", "pyjwt (>=2.6,<2.9)", "python-dotenv", "requests (>=2.26.0)", "tzlocal"]
 devices-dht22 = ["pigpio"]
 devices-epd = ["pillow", "rpi.gpio", "spidev"]
 devices-yamaha-yas-209 = ["async-upnp-client", "pydantic (<3.0.0)", "xmltodict"]
 exceptions = ["python-dotenv", "requests (>=2.26.0)"]
-functions = ["lxml (==5.1.0)", "pytz (>=2022.1)"]
-logging = ["pytz (>=2022.1)", "requests (>=2.26.0)"]
+functions = ["lxml (==5.1.0)"]
+logging = ["requests (>=2.26.0)"]
 testing = ["botocore"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "c374d5239d37f31dbc2c7d4fff23ad9b58f797442b457725fe0cbf6890e0ff50"
+content-hash = "717affeced9ccf18ac864fdebb6023b698dff045114996b54d59e0b60fca7854"
