@@ -63,6 +63,7 @@ HAYamlLoader = YAML(typ="rt")
 HAYamlLoader.explicit_start = True
 HAYamlLoader.preserve_quotes = True
 HAYamlLoader.indent(mapping=2, sequence=4, offset=2)
+HAYamlLoader.width = 4096
 
 
 @JProc.callback(allow_mutation=False)
