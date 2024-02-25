@@ -136,6 +136,12 @@ class ShouldMatchFilepathItem(BaseModel):
 
 @lru_cache
 def _get_variable_setter_pattern(__var: str) -> re.Pattern[str]:
+    r"""Create a regex pattern to match a Jinja2 variable setter.
+
+    Example:
+        >>> _get_variable_setter_pattern("var")
+        Pattern(r'{{% set var = ')  # but with flexible whitespace
+    """
     return re.compile(rf"{{%\s*set\s*{re.escape(__var)}\s*=.+")
 
 
@@ -161,53 +167,56 @@ def _jinja_template_validator(
         issues.append(InvalidTemplateError(exc, loc=_loc_))
         return
 
-    if undeclared_variables:
-        try:
-            jproc = JProc.from_cache("find_template_variables")
-        except CacheIdNotFoundError:
-            jproc = JProc(
-                {
-                    dict: JProc.cb(
-                        _remove_declared_variables,
-                        lambda _, loc: loc == "variables",
-                    ),
-                    str: JProc.cb(
-                        _remove_response_variables,
-                        lambda _, loc: loc == "response_variable",
-                    ),
-                },
-                identifier="find_template_variables",
-                process_pydantic_extra_fields=True,
-            )
+    if not undeclared_variables:
+        return
 
-        jproc.process_model(
-            entity,
-            undeclared_variables=undeclared_variables,
+    try:
+        jproc = JProc.from_cache("find_template_variables")
+    except CacheIdNotFoundError:
+        jproc = JProc(
+            {
+                dict: JProc.cb(
+                    _remove_declared_variables,
+                    lambda _, loc: loc == "variables",
+                ),
+                str: JProc.cb(
+                    _remove_response_variables,
+                    lambda _, loc: loc == "response_variable",
+                ),
+            },
+            identifier="find_template_variables",
+            process_pydantic_extra_fields=True,
         )
 
-        if package_name == "script":
-            with suppress(AttributeError):
-                undeclared_variables -= set(entity.fields.keys())  # type: ignore[attr-defined]
+    jproc.process_model(
+        entity,
+        undeclared_variables=undeclared_variables,
+    )
 
-        if undeclared_variables and (
-            suppressed := entity.suppressions__.get(_loc_, {}).get(
-                InvalidTemplateVarError.SUPPRESSION_COMMENT,
-            )
-        ):
-            undeclared_variables -= suppressed
+    # Special case for script input fields (arguments)
+    if package_name == "script":
+        with suppress(AttributeError):  # not all scripts have fields
+            undeclared_variables -= set(entity.fields.keys())  # type: ignore[attr-defined]
 
-        for var in undeclared_variables:
-            if _get_variable_setter_pattern(var).search(_value_):
-                continue
+    # Discount any suppressed vars
+    if undeclared_variables and (
+        suppressed := entity.suppressions__.get(_loc_, {}).get(
+            InvalidTemplateVarError.SUPPRESSION_COMMENT,
+        )
+    ):
+        undeclared_variables -= suppressed
 
-            issues.append(
-                InvalidTemplateVarError(
-                    undeclared_var=var,
-                    loc=_loc_,
-                ),
-            )
+    # jinja2 won't detect variables declared within templates, so find them with regex
+    for var in undeclared_variables:
+        if _get_variable_setter_pattern(var).search(_value_):
+            continue
 
-    return
+        issues.append(
+            InvalidTemplateVarError(
+                undeclared_var=var,
+                loc=_loc_,
+            ),
+        )
 
 
 @JProc.callback(allow_mutation=False)
