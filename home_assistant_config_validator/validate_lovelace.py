@@ -5,12 +5,18 @@ from __future__ import annotations
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Final, Literal, TypedDict
 
-from wg_utilities.functions.json import (
-    JSONObj,
-    traverse_dict,
+from jinja2.defaults import (
+    BLOCK_END_STRING,
+    BLOCK_START_STRING,
+    COMMENT_END_STRING,
+    COMMENT_START_STRING,
+    VARIABLE_END_STRING,
+    VARIABLE_START_STRING,
 )
+from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
+from wg_utilities.helpers.processor import JProc
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.models.config import ValidationConfig
@@ -22,10 +28,14 @@ from home_assistant_config_validator.utils import (
     UnusedFileError,
     args,
     const,
+    entity_id_check_callback,
     format_output,
     load_yaml,
 )
 from home_assistant_config_validator.utils.exception import InvalidDependencyError
+
+VAR_TEMPLATE_BLOCK_START_STRING: Final[Literal["[["]] = "[["
+VAR_TEMPLATE_BLOCK_END_STRING: Final[Literal["]]"]] = "]]"
 
 
 class Card(TypedDict):
@@ -68,7 +78,7 @@ class DashboardConfig(LovelaceConfig):
 def check_known_entity_usages(
     *,
     all_issues: dict[Path, list[InvalidConfigurationError]],
-    config: JSONObj,
+    config: dict[str, object],
     file: Path,
 ) -> None:
     """Check that all entities used in the config YAML are defined elsewhere.
@@ -77,12 +87,17 @@ def check_known_entity_usages(
     packages which have entities that can be defined through the GUI are not checked.
     """
     entity_ids: set[tuple[str, str]] = set()
-    cb = const.create_entity_id_check_callback(entity_ids)
-    traverse_dict(
-        config,
-        target_type=str,
-        target_processor_func=cb,
-    )
+
+    try:
+        jproc = JProc.from_cache("entity_id_check")
+    except CacheIdNotFoundError:
+        jproc = JProc(
+            {str: entity_id_check_callback},
+            identifier="entity_id_check",
+            process_pydantic_extra_fields=True,
+        )
+
+    jproc.process(config, entity_ids=entity_ids)
 
     while entity_ids:
         dict_key, entity_id = entity_ids.pop()
@@ -97,44 +112,72 @@ def check_known_entity_usages(
 def validate_decluttering_templates(
     *,
     all_issues: dict[Path, list[InvalidConfigurationError]],
-    config: JSONObj,
-    decluttering_templates: Include | dict[str, DeclutteringTemplate],
+    config: dict[str, object],
+    lovelace_config: LovelaceConfig,
     file: Path,
 ) -> None:
     """Validate that all referenced decluttering templates are defined."""
+    decluttering_templates: Include | dict[str, DeclutteringTemplate] = lovelace_config[
+        "decluttering_templates"
+    ]
 
-    def _cb(
-        value: str,
-        *,
-        dict_key: str | None = None,
-        **_: Any,
-    ) -> str:
-        if dict_key != "template" or (
-            # False positives from actual templates
-            value.lstrip().startswith(("{{", "[[")) and value.rstrip().endswith(("}}", "]]"))
-        ):
-            return value
+    @JProc.callback(allow_mutation=False)
+    def _val_decluttering_templates(
+        _value_: str,
+    ) -> None:
+        all_issues[file].append(DeclutteringTemplateNotFoundError(_value_))
 
-        if value not in decluttering_templates:
-            all_issues[file].append(
-                DeclutteringTemplateNotFoundError(value),
-            )
+    try:
+        jproc = JProc.from_cache("validate_decluttering_templates")
+    except CacheIdNotFoundError:
+        jproc = JProc(
+            {
+                str: JProc.cb(
+                    _val_decluttering_templates,
+                    lambda item, loc: (
+                        loc == "template"
+                        # False positives from actual templates
+                        and not item.lstrip().startswith(
+                            (
+                                BLOCK_START_STRING,
+                                COMMENT_START_STRING,
+                                VARIABLE_START_STRING,
+                                VAR_TEMPLATE_BLOCK_START_STRING,
+                            ),
+                        )
+                        and not item.rstrip().endswith(
+                            (
+                                BLOCK_END_STRING,
+                                COMMENT_END_STRING,
+                                VARIABLE_END_STRING,
+                                VAR_TEMPLATE_BLOCK_END_STRING,
+                            ),
+                        )
+                        and item not in decluttering_templates
+                    ),
+                ),
+            },
+            identifier="validate_decluttering_templates",
+            process_pydantic_extra_fields=True,
+        )
 
-        return value
+    jproc.process(config)
 
-    traverse_dict(
-        config,
-        target_type=str,
-        target_processor_func=_cb,
-        pass_on_fail=False,
-    )
+
+@JProc.callback()
+def _get_unused_files_cb(
+    _value_: Include,
+    included_files: list[Path],
+) -> dict[str, object]:
+    included_files.append(_value_.absolute_path)
+    return _value_.resolve()
 
 
 def get_unused_files(
     *,
     all_issues: dict[Path, list[InvalidConfigurationError]],
     lovelace_config: LovelaceConfig,
-    package_config: JSONObj,
+    package_config: dict[str, object],
 ) -> list[tuple[Path, DashboardConfig]]:
     """Get a list of files which areen't used anywhere in the Lovelace configuration."""
     all_lovelace_files = [
@@ -144,41 +187,26 @@ def get_unused_files(
 
     included_files: list[Path] = []
 
-    def _cb(
-        value: Include,
-        *,
-        dict_key: str | None = None,
-        list_index: int | None = None,
-    ) -> JSONObj:
-        _ = dict_key, list_index
-        included_files.append(value.absolute_path)
-        return value.resolve()
+    try:
+        jproc = JProc.from_cache("get_unused_files")
+    except CacheIdNotFoundError:
+        jproc = JProc(
+            {Include: _get_unused_files_cb},
+            identifier="get_unused_files",
+            process_pydantic_extra_fields=True,
+        )
 
-    traverse_dict(
-        lovelace_config,  # type: ignore[arg-type]
-        target_type=Include,
-        target_processor_func=_cb,
-        pass_on_fail=False,
-    )
-    traverse_dict(
-        package_config,
-        target_type=Include,
-        target_processor_func=_cb,
-        pass_on_fail=False,
-    )
+    jproc.process(lovelace_config, included_files=included_files)
+    jproc.process(package_config, included_files=included_files)
 
     dashboards = []
     db_config: dict[str, str]
-    for db_config in package_config["lovelace"]["dashboards"].values():  # type: ignore[call-overload,index,union-attr]
-        dashboard_file = const.REPO_PATH.joinpath(db_config["filename"])
-        included_files.append(dashboard_file.resolve())
-        db_yaml, _ = load_yaml(dashboard_file, validate_content_type=JSONObj)
-        traverse_dict(
-            db_yaml,
-            target_type=Include,
-            target_processor_func=_cb,
-            pass_on_fail=False,
-        )
+    for db_config in package_config["lovelace"]["dashboards"].values():  # type: ignore[index]
+        dashboard_file = const.REPO_PATH.joinpath(db_config["filename"]).resolve()
+        included_files.append(dashboard_file)
+        db_yaml, _ = load_yaml(dashboard_file, validate_content_type=dict[str, object])
+
+        jproc.process(db_yaml, included_files=included_files)
 
         dashboards.append(
             (
@@ -208,7 +236,7 @@ def main() -> None:
     ValidationConfig.get_for_package(pkg)
 
     lovelace_config = LovelaceConfig(**llc)  # type: ignore[typeddict-item]
-    package_config, _ = load_yaml(pkg.root_file, validate_content_type=JSONObj)
+    package_config, _ = load_yaml(pkg.root_file, validate_content_type=dict[str, object])
 
     all_issues: defaultdict[Path, list[InvalidConfigurationError]] = defaultdict(list)
 
@@ -226,7 +254,7 @@ def main() -> None:
         validate_decluttering_templates(
             all_issues=all_issues,
             config=config,
-            decluttering_templates=lovelace_config["decluttering_templates"],
+            lovelace_config=lovelace_config,
             file=file,
         )
         check_known_entity_usages(

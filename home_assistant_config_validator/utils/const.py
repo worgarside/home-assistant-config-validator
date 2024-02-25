@@ -6,10 +6,8 @@ import re
 from enum import StrEnum
 from os import getenv
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Final, Literal
 from uuid import uuid4
-
-from wg_utilities.functions.json import TargetProcessorFunc
 
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
@@ -31,7 +29,7 @@ ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 
 
-COMMON_SERVICES = (
+COMMON_SERVICES: Final[tuple[str, ...]] = (
     "decrement",
     "increment",
     "pause",
@@ -49,6 +47,87 @@ COMMON_SERVICES = (
     "turn_off",
     "turn_on",
 )
+
+JINJA_FILTERS: Final[tuple[str, ...]] = (
+    "round",
+    "multiply",
+    "log",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "atan2",
+    "sqrt",
+    "as_datetime",
+    "as_timedelta",
+    "as_timestamp",
+    "as_local",
+    "timestamp_custom",
+    "timestamp_local",
+    "timestamp_utc",
+    "to_json",
+    "from_json",
+    "is_defined",
+    "average",
+    "random",
+    "base64_encode",
+    "base64_decode",
+    "ordinal",
+    "regex_match",
+    "regex_replace",
+    "regex_search",
+    "regex_findall",
+    "regex_findall_index",
+    "bitwise_and",
+    "bitwise_or",
+    "pack",
+    "unpack",
+    "ord",
+    "is_number",
+    "float",
+    "int",
+    "slugify",
+    "iif",
+    "bool",
+    "version",
+    "contains",
+)
+
+JINJA_TESTS: Final[tuple[str, ...]] = (
+    "is_number",
+    "match",
+    "search",
+    "contains",
+    "list",
+)
+
+JINJA_VARS: Final[set[str]] = {
+    "as_timestamp",
+    "device_attr",
+    "device_id",
+    "distance",
+    "float",
+    "has_value",
+    "iif",
+    "is_number",
+    "is_state",
+    "is_state_attr",
+    "max",
+    "min",
+    "now",
+    "repeat",
+    "state_attr",
+    "states",
+    "this",
+    "timedelta",
+    "today_at",
+    "trigger",
+    "utcnow",
+    "value_json",
+    "wait",
+}
 
 YAML_ONLY_PACKAGES: Final[tuple[str, ...]] = (
     "automation",
@@ -82,27 +161,6 @@ class Inequal:
         return uuid4().int
 
 
-def create_entity_id_check_callback(
-    entity_ids: set[tuple[str, str]],
-) -> TargetProcessorFunc[str]:
-    """Create a callback to identify entity IDs.
-
-    Intended as a wg_utilities.function.json.TargetProcessorFunc instance.
-    """
-
-    def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
-        if (
-            ENTITY_ID_PATTERN.fullmatch(value)
-            and value.split(".")[0] in YAML_ONLY_PACKAGES
-            and value.split(".")[1] not in COMMON_SERVICES
-        ):
-            entity_ids.add((dict_key or "", value))
-
-        return value
-
-    return _cb
-
-
 INEQUAL = Inequal()
 
 __all__ = [
@@ -115,6 +173,6 @@ __all__ = [
     "INEQUAL",
     "COMMON_SERVICES",
     "YAML_ONLY_PACKAGES",
-    "create_entity_id_check_callback",
     "LOVELACE_ARCHIVE_DIR",
+    "JINJA_VARS",
 ]

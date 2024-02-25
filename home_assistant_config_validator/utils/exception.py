@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
+from jinja2 import TemplateError
 
 from . import const
 
@@ -102,6 +104,7 @@ class InvalidConfigurationError(HomeAssistantConfigurationError):
     """Raised when a configuration is invalid."""
 
     fmt_msg: str
+    SUPPRESSION_COMMENT: ClassVar[str]
 
     def __init__(self, message: str) -> None:
         """Initialize the error."""
@@ -111,6 +114,10 @@ class InvalidConfigurationError(HomeAssistantConfigurationError):
             self.fmt_msg = message
 
         self.fixed = False
+
+    def __init_subclass__(cls) -> None:
+        cls.SUPPRESSION_COMMENT = cls.__name__.removesuffix("Error").lower()
+        return super().__init_subclass__()
 
 
 class FixableConfigurationError(InvalidConfigurationError):
@@ -260,6 +267,28 @@ class ShouldMatchFilePathError(FixableConfigurationError):
         )
 
 
+class InvalidTemplateError(InvalidConfigurationError):
+    """Raised when a Jinja template is invalid."""
+
+    def __init__(
+        self,
+        jinja_exc: TemplateError,
+        loc: int | str,
+    ) -> None:
+        super().__init__(str(jinja_exc))
+
+        self.fmt_msg = (
+            f"{(jinja_exc.message or 'Invalid template').rstrip('.')} for field `{loc}`"
+        )
+
+
+class InvalidTemplateVarError(InvalidConfigurationError):
+    """Raised when a Jinja template has invalid/undeclared variable."""
+
+    def __init__(self, *, undeclared_var: str, loc: int | str) -> None:
+        super().__init__(f"Undeclared variable `{undeclared_var}` in field `{loc}`")
+
+
 __all__ = [
     "ConfigurationError",
     "UserPCHConfigurationError",
@@ -269,5 +298,7 @@ __all__ = [
     "EntityDefinitionError",
     "PackageNotFoundError",
     "PackageDefinitionError",
+    "InvalidTemplateError",
     "InvalidDependencyError",
+    "InvalidTemplateVarError",
 ]

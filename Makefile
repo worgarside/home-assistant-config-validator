@@ -1,3 +1,9 @@
+install:
+	poetry install --all-extras --sync
+
+update:
+	poetry cache clear --all _default_cache && poetry update
+
 try-repo:
 	git add . && cd ../home-assistant && git add . && pre-commit try-repo ../home-assistant-config-validator
 

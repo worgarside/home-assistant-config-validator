@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 import shutil
 from abc import ABC, abstractmethod
-from collections import defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Collection, Generator
+from contextlib import suppress
 from dataclasses import dataclass, field
 from functools import cached_property, lru_cache
 from logging import getLogger
@@ -28,18 +28,12 @@ from typing import (
 
 from jsonpath_ng import JSONPath, parse  # type: ignore[import-untyped]
 from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-untyped]
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 from ruamel.yaml import YAML, ScalarNode
 from ruamel.yaml.comments import CommentedBase, CommentedMap, CommentedSeq
 from ruamel.yaml.representer import Representer
-from wg_utilities.functions.json import (
-    JSONArr,
-    JSONObj,
-    JSONVal,
-    TargetProcessorFunc,
-    process_json_object,
-    traverse_dict,
-)
+from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
+from wg_utilities.helpers.processor import JProc
 
 from . import const
 from .exception import (
@@ -55,9 +49,12 @@ from .exception import (
 LOGGER = getLogger(__name__)
 
 
+JSONObj = dict[str, object]
+
+# File Content TypeVar
 F = TypeVar("F", JSONObj, list[JSONObj])
 
-ResTo = TypeVar("ResTo", bound=JSONVal)
+ResTo = TypeVar("ResTo", bound=object)
 ResToPath = TypeVar("ResToPath", JSONObj, list[JSONObj], JSONObj | list[JSONObj])
 
 
@@ -67,44 +64,60 @@ HAYamlLoader.preserve_quotes = True
 HAYamlLoader.indent(mapping=2, sequence=4, offset=2)
 
 
-@lru_cache
-def suppressables() -> list[str]:
-    return [
-        sc.__name__.removesuffix("Error").lower()
-        for sc in subclasses_recursive(
-            InvalidConfigurationError,
-        )
-    ]
+@JProc.callback(allow_mutation=False)
+def entity_id_check_callback(
+    _value_: str,
+    _loc_: str | int,
+    _obj_type_: type[dict[str, object] | list[object]],
+    entity_ids: set[tuple[str, str]],
+) -> None:
+    """Identify entity IDs in strings."""
+    if (
+        const.ENTITY_ID_PATTERN.fullmatch(_value_)
+        and _value_.split(".")[0] in const.YAML_ONLY_PACKAGES
+        and _value_.split(".")[1] not in const.COMMON_SERVICES
+    ):
+        entity_ids.add((str(_loc_ or "") if _obj_type_ is dict else "", _value_))
 
 
-@lru_cache
-def parse_hacv_comment(comment: str, /) -> tuple[tuple[str, str | None], ...]:
-    comments = []
-    for s in comment.strip().lower().removeprefix("# hacv disable: ").split(","):
-        try:
-            suppressed, argument = s.strip().split(":", 1)
-        except ValueError:
-            suppressed, argument = s.strip(), None
+def parse_hacv_comment(cmt: str, /) -> dict[str, set[str]]:
+    """Parse a comment for suppressing a Home Assistant Config Validator error.
 
-        comments.append((suppressed, argument))
+    Example:
+        >>> parse_hacv_comment("# # hacv disable: error1:arg1,arg2;error2:arg1,arg2")
+        {"error1": {"arg1", "arg2"}, "error2": {"arg1", "arg2"}}
+    """
+    parsed: dict[str, set[str]] = {}
+    for chained_comment in (
+        cmt.strip().lower().removeprefix(Entity.SUPPRESSION_COMMENT_PREFIX).split(";")
+    ):
+        parts = chained_comment.strip().split(":", 1)
+        suppressed_error, args = parts if len(parts) > 1 else (parts[0], "")
+        parsed.setdefault(suppressed_error, set()).update(args.split(","))
 
-    return tuple(comments)
+    return parsed
 
 
 class Entity(BaseModel):
-    INSTANCES: ClassVar[dict[str, Self]] = {}
+    SUPPRESSION_COMMENT_PREFIX: ClassVar[str] = "# hacv disable: "
 
     file__: Path = Field(exclude=True)
     modified__: bool = Field(default=False, exclude=True)
     suppressions__: dict[
-        str,  # key
+        str,  # key/field
         dict[
-            str,  # suppressed
-            tuple[str | None],  # argument(s)
+            str,  # suppressed error
+            set[str],  # argument(s)
         ],
-    ] = Field(default_factory=dict)
+    ] = Field(default_factory=dict, exclude=True)
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", validate_assignment=True)
+
+    @field_validator("file__")
+    @classmethod
+    def resolve_file_path(cls, file__: Path, /) -> Path:
+        """Resolve the file path."""
+        return file__.resolve()
 
     @classmethod
     def model_validate_file_content(
@@ -115,36 +128,29 @@ class Entity(BaseModel):
         comments_in_file: bool,
     ) -> Self:
         """Parse the file content and extract any comments."""
-        if comments_in_file is not False:
-            suppressions: dict[
-                str,
-                dict[str, set[str | None]],
-            ] = defaultdict(lambda: defaultdict(set))
+        if comments_in_file:
+            suppressions = cls.get_suppressions(file_content)
 
-            cls.search_comments(file_content, suppressions)  # type: ignore[arg-type]
-
-            try:
-                hacv_comment: str = file_content.ca.comment[1][0].value  # type: ignore[attr-defined]
-            except (AttributeError, IndexError, TypeError):
-                pass
-            else:
-                for suppressed, argument in parse_hacv_comment(hacv_comment):
-                    suppressions["*"][suppressed].add(argument)
+            with suppress(AttributeError, IndexError, TypeError):
+                suppressions.setdefault("*", {}).update(
+                    parse_hacv_comment(file_content.ca.comment[1][0].value),  # type: ignore[attr-defined]
+                )
 
             file_content["suppressions__"] = suppressions
 
         return cls.model_validate(file_content)
 
     @staticmethod
-    def search_comments(  # noqa: PLR0912
-        node: CommentedBase,
-        suppressions: dict[str, dict[str, set[str | None]]],
-    ) -> None:
+    def get_suppressions(
+        node: CommentedBase | JSONObj,
+    ) -> dict[str, dict[str, Collection[str]]]:
         """Search for HACV comments in a YAML file."""
+        suppressions: dict[str, dict[str, Collection[str]]] = {}
+
         try:
-            file_comments = node.ca.items
+            file_comments = node.ca.items  # type: ignore[union-attr]
         except AttributeError:
-            return
+            return {}
 
         for key, item_comments in file_comments.items():
             try:
@@ -157,16 +163,19 @@ class Entity(BaseModel):
             for eol_comment in (
                 eol_comments if isinstance(eol_comments, list) else (eol_comments,)
             ):
-                if (comment_value := eol_comment.value).startswith("# hacv disable: "):
-                    for suppressed, argument in parse_hacv_comment(comment_value):
-                        suppressions[key][suppressed].add(argument)
+                if (comment_value := str(eol_comment.value)).startswith(
+                    Entity.SUPPRESSION_COMMENT_PREFIX,
+                ):
+                    suppressions.setdefault(key, {}).update(parse_hacv_comment(comment_value))
 
         if isinstance(node, CommentedMap):
             for value in node.values():
-                Entity.search_comments(value, suppressions)
+                suppressions.update(Entity.get_suppressions(value))
         elif isinstance(node, CommentedSeq):
             for item in node:
-                Entity.search_comments(item, suppressions)
+                suppressions.update(Entity.get_suppressions(item))
+
+        return suppressions
 
     def get(self, key: str, default: Any = None, /) -> Any:
         """Get a value from the entity."""
@@ -219,13 +228,28 @@ class Entity(BaseModel):
         """Get the entities consumed by this entity."""
         deps: set[tuple[str, str]] = set()
 
-        traverse_dict(
-            self.model_dump(),
-            target_type=str,
-            target_processor_func=const.create_entity_id_check_callback(deps),
-        )
+        try:
+            jproc = JProc.from_cache("entity_id_check")
+        except CacheIdNotFoundError:
+            jproc = JProc(
+                {str: entity_id_check_callback},
+                identifier="entity_id_check",
+                process_pydantic_extra_fields=True,
+            )
+
+        jproc.process(self.model_dump(), entity_ids=deps)
 
         return deps
+
+    def __hash__(self) -> int:
+        return hash(
+            str(self.file__)
+            + self.model_dump_json(
+                exclude_unset=True,
+                exclude_defaults=True,
+                exclude_none=True,
+            ),
+        )
 
 
 EntityGenerator = Generator[Entity, None, None]
@@ -330,24 +354,14 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         """Post-initialisation."""
         self.path = PurePath(self.path)
 
-    @classmethod
-    def attach_file_to_tag(
-        cls,
+    @JProc.callback(allow_mutation=False)
+    @staticmethod
+    def _attach_file_to_tag(
+        _value_: Tag[ResToPath],
         file: Path,
-    ) -> TargetProcessorFunc[Tag[ResToPath]]:
-        def _cb(
-            value: Tag[ResToPath],
-            *,
-            dict_key: str | None = None,
-            list_index: int | None = None,
-        ) -> Tag[ResToPath]:
-            _ = dict_key, list_index
-            if not hasattr(value, "file") or not value.file or value.file == const.NULL_PATH:
-                value.file = file.resolve(strict=True)
-
-            return value
-
-        return _cb
+    ) -> None:
+        if not hasattr(_value_, "file") or not _value_.file or _value_.file == const.NULL_PATH:
+            _value_.file = file.resolve(strict=True)
 
     @abstractmethod
     def _add_file_content_to_data(
@@ -392,14 +406,8 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
                 )
 
             # Attach a file path to the tags for resolution later
-            process_json_object(  # type: ignore[misc]
-                file_content,
-                target_type=TagWithPath,
-                target_processor_func=TagWithPath.attach_file_to_tag(file),
-                pass_on_fail=False,
-                log_op_func_failures=False,
-                single_keys_to_remove=["sensor"],
-            )
+            # Don't need to check for missing cache ID here, that's done in `load_yaml`
+            JProc.from_cache("attach_file_to_tag").process(file_content, file=file)
 
             data = self._add_file_content_to_data(data, file, file_content)
 
@@ -443,7 +451,7 @@ class Include(TagWithPath[JSONObj, JSONObj]):
             resolve_tags (bool): Whether to resolve tags in the loaded data.
 
         Returns:
-            JSONObj | JSONArr: The data from the path.
+            JSONObj | list[object]: The data from the path.
         """
         if source_file == const.NULL_PATH:
             source_file = self.file
@@ -560,7 +568,10 @@ class IncludeDirMergeList(TagWithPath[list[JSONObj], list[JSONObj]]):
         for elem in file_content:
             elem["file__"] = file.resolve()
 
-            yield Entity.model_validate_file_content(elem, comments_in_file=comments_in_file)
+            yield Entity.model_validate_file_content(
+                elem,
+                comments_in_file=comments_in_file,
+            )
 
 
 @dataclass
@@ -687,13 +698,17 @@ def load_yaml(
         raise FileContentTypeError(path, content, validate_content_type)
 
     if not isolate_tags_from_files:
-        process_json_object(  # type: ignore[misc]
-            content,
-            target_type=TagWithPath,
-            target_processor_func=TagWithPath.attach_file_to_tag(path),
-            pass_on_fail=False,
-            log_op_func_failures=False,
-        )
+        try:
+            jproc = JProc.from_cache("attach_file_to_tag")
+        except CacheIdNotFoundError:
+            jproc = JProc(
+                {TagWithPath: TagWithPath._attach_file_to_tag},
+                identifier="attach_file_to_tag",
+                process_type_changes=True,
+                process_pydantic_extra_fields=True,
+            )
+
+        jproc.process(content, file=path)
 
     return content, comments_in_file
 
@@ -748,33 +763,33 @@ def get_json_value(
     json_path: JSONPathStr,
     /,
     valid_type: Literal[None] = None,
-    default: JSONVal = ...,
-) -> JSONVal:
+    default: object = ...,
+) -> object:
     ...
 
 
 @overload
 def get_json_value(
-    json_obj: Entity | JSONObj | JSONArr,
+    json_obj: Entity | JSONObj | list[object],
     json_path: JSONPathStr,
     /,
     valid_type: type[G],
-    default: JSONVal = NO_DEFAULT,
+    default: object = NO_DEFAULT,
 ) -> G:
     ...
 
 
 def get_json_value(
-    json_obj: Entity | JSONObj | JSONArr,
+    json_obj: Entity | JSONObj | list[object],
     json_path_str: JSONPathStr,
     /,
     valid_type: type[G] | None = None,
-    default: JSONVal = NO_DEFAULT,
-) -> G | JSONVal:
+    default: object = NO_DEFAULT,
+) -> G | object:
     """Get a value from a JSON object using a JSONPath expression.
 
     Args:
-        json_obj (JSONObj | JSONArr): The JSON object to search
+        json_obj (JSONObj | list[object]): The JSON object to search
         json_path_str (JSONPathStr): The JSONPath expression
         default (Any, optional): The default value to return if the path is not found.
             Defaults to None.
@@ -786,7 +801,7 @@ def get_json_value(
     """
     json_path = parse_jsonpath(json_path_str)
 
-    values: JSONArr = [match.value for match in json_path.find(json_obj)]
+    values: list[object] = [match.value for match in json_path.find(json_obj)]
 
     if isinstance(json_obj, Entity):
         json_obj = json_obj.model_dump()
@@ -809,7 +824,7 @@ def get_json_value(
 def set_json_value(
     obj: JSONObj,
     json_path_str: JSONPathStr,
-    value: JSONVal,
+    value: object,
     /,
     *,
     allow_create: bool = False,
@@ -824,7 +839,7 @@ def set_json_value(
             exist. Defaults to False.
 
     Returns:
-        JSONObj | JSONArr: The updated JSON object
+        JSONObj | list[object]: The updated JSON object
     """
     json_path = parse_jsonpath(json_path_str)
 

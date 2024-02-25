@@ -2,20 +2,33 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from collections.abc import Callable
+from contextlib import suppress
 from enum import StrEnum
+from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+from jinja2 import Environment, TemplateError, meta
+from jinja2.defaults import (
+    BLOCK_START_STRING,
+    COMMENT_START_STRING,
+    VARIABLE_START_STRING,
+)
 from pydantic import BaseModel, ConfigDict, Field
+from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
+from wg_utilities.helpers.processor import JProc
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
     Entity,
     InvalidConfigurationError,
     InvalidDependencyError,
+    InvalidTemplateError,
+    InvalidTemplateVarError,
     JsonPathNotFoundError,
     JSONPathStr,
     ShouldBeEqualError,
@@ -121,6 +134,118 @@ class ShouldMatchFilepathItem(BaseModel):
         raise ValueError(self.case)
 
 
+@lru_cache
+def _get_variable_setter_pattern(__var: str) -> re.Pattern[str]:
+    r"""Create a regex pattern to match a Jinja2 variable setter.
+
+    Example:
+        >>> _get_variable_setter_pattern("var")
+        Pattern(r'{{% set var = ')  # but with flexible whitespace
+    """
+    return re.compile(rf"{{%\s*set\s*{re.escape(__var)}\s*=.+")
+
+
+@JProc.callback(allow_mutation=False)
+def _jinja_template_validator(
+    _value_: str,
+    _loc_: str,
+    entity: Entity,
+    issues: list[InvalidConfigurationError],
+    package_name: str,
+) -> None:
+    """Validate Jinja2 template syntax and variable usage."""
+    try:
+        template = ValidationConfig.JINJA_ENV.parse(_value_)
+    except TemplateError as exc:
+        issues.append(
+            InvalidTemplateError(exc, loc=_loc_),
+        )
+        return
+
+    try:
+        undeclared_variables = meta.find_undeclared_variables(template) - const.JINJA_VARS
+    except TemplateError as exc:
+        issues.append(InvalidTemplateError(exc, loc=_loc_))
+        return
+
+    if not undeclared_variables:
+        return
+
+    try:
+        jproc = JProc.from_cache("find_template_variables")
+    except CacheIdNotFoundError:
+        jproc = JProc(
+            {
+                dict: JProc.cb(
+                    _remove_declared_variables,
+                    lambda _, loc: loc == "variables",
+                ),
+                str: JProc.cb(
+                    _remove_response_variables,
+                    lambda _, loc: loc == "response_variable",
+                ),
+            },
+            identifier="find_template_variables",
+            process_pydantic_extra_fields=True,
+        )
+
+    # Process the mnodel to get variables (including response variables)
+    jproc.process_model(
+        entity,
+        undeclared_variables=undeclared_variables,
+    )
+
+    # Special case for script input fields (arguments)
+    if package_name == "script":
+        with suppress(AttributeError):  # not all scripts have fields
+            undeclared_variables -= set(entity.fields.keys())  # type: ignore[attr-defined]
+
+    # Discount any suppressed vars
+    if undeclared_variables and (
+        suppressed := entity.suppressions__.get(_loc_, {}).get(
+            InvalidTemplateVarError.SUPPRESSION_COMMENT,
+        )
+    ):
+        undeclared_variables -= suppressed
+
+    # jinja2 won't detect variables declared within templates, so find them with regex
+    for var in undeclared_variables:
+        if _get_variable_setter_pattern(var).search(_value_):
+            continue
+
+        issues.append(
+            InvalidTemplateVarError(
+                undeclared_var=var,
+                loc=_loc_,
+            ),
+        )
+
+
+@JProc.callback(allow_mutation=False)
+def _remove_response_variables(
+    _value_: str,
+    undeclared_variables: set[str],
+) -> None:
+    """Discount response variables declared within the entity.
+
+    https://www.home-assistant.io/docs/scripts#stopping-a-script-sequence
+    """
+    with suppress(KeyError):
+        undeclared_variables.remove(_value_)
+
+
+@JProc.callback(allow_mutation=False)
+def _remove_declared_variables(
+    _value_: dict[str, str],
+    undeclared_variables: set[str],
+) -> None:
+    """Discount variable declared explicitly within the entity.
+
+    https://www.home-assistant.io/docs/scripts#variables
+    """
+    undeclared_variables -= set(_value_.keys())
+
+
 class ValidationConfig(Config):
     """Dataclass for a package's validator configuration."""
 
@@ -129,6 +254,11 @@ class ValidationConfig(Config):
     ] = const.ConfigurationType.VALIDATION
 
     KNOWN_ENTITY_IDS: ClassVar[tuple[str, ...]]
+
+    JINJA_ENV: ClassVar[Environment] = Environment(
+        autoescape=True,
+        extensions=["jinja2.ext.loopcontrols"],
+    )
 
     package: Package
 
@@ -146,16 +276,57 @@ class ValidationConfig(Config):
 
     def model_post_init(self, *_: Any, **__: Any) -> None:
         """Post-initialisation steps for the model."""
-        if not hasattr(self, "KNOWN_ENTITY_IDS"):
+        if not hasattr(ValidationConfig, "KNOWN_ENTITY_IDS"):
+            for jf in const.JINJA_FILTERS:
+                # Not actually running the templates, so the filter function is immaterial
+                ValidationConfig.JINJA_ENV.filters.setdefault(jf, lambda _: None)
+
+            for jt in const.JINJA_TESTS:
+                ValidationConfig.JINJA_ENV.tests.setdefault(jt, lambda _: None)
+
+            # This needs to be last - `KNOWN_ENTITY_IDS` is the flag for "this has been done"
             ValidationConfig.KNOWN_ENTITY_IDS = tuple(
-                DocumentationConfig.get_for_package(pkg).get_id(entity, prefix_domain=True)
+                DocumentationConfig.get_for_package(pkg).get_id(
+                    entity,
+                    prefix_domain=True,
+                )
                 for pkg in Package.get_packages()
                 for entity in pkg.entities
             )
 
+    def _validate_jinja2_templates(self, entity: Entity, /) -> None:
+        """Validate that any Jinja2 Templates have valid syntax."""
+        try:
+            jproc = JProc.from_cache("template_validation")
+        except CacheIdNotFoundError:
+            jproc = JProc(
+                {
+                    str: JProc.cb(
+                        _jinja_template_validator,
+                        lambda item, **_: (
+                            VARIABLE_START_STRING in item
+                            or BLOCK_START_STRING in item
+                            or COMMENT_START_STRING in item
+                        ),
+                    ),
+                },
+                identifier="template_validation",
+                process_pydantic_extra_fields=True,
+            )
+
+        jproc.process_model(
+            entity,
+            entity=entity,
+            issues=self.issues[entity.file__],
+            package_name=self.package.name,
+        )
+
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
-        if "invaliddependency" in entity.suppressions__.get("*", ()):
+        if InvalidDependencyError.SUPPRESSION_COMMENT in entity.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         entity_id = None
@@ -163,7 +334,7 @@ class ValidationConfig(Config):
         for key, dep in entity.entity_dependencies:
             if (
                 dep in self.KNOWN_ENTITY_IDS
-                or "invaliddependency"
+                or InvalidDependencyError.SUPPRESSION_COMMENT
                 in entity.suppressions__.get(
                     key,
                     (),
@@ -182,8 +353,18 @@ class ValidationConfig(Config):
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for json_path_str_1, json_path_str_2 in self.should_be_equal:
             try:
-                if (value_1 := get_json_value(entity_yaml, json_path_str_1)) != (
-                    value_2 := get_json_value(entity_yaml, json_path_str_2)
+                if (
+                    value_1 := get_json_value(
+                        entity_yaml,
+                        json_path_str_1,
+                        default=const.INEQUAL,
+                    )
+                ) != (
+                    value_2 := get_json_value(
+                        entity_yaml,
+                        json_path_str_2,
+                        default=const.INEQUAL,
+                    )
                 ):
                     self.issues[entity_yaml.file__].append(
                         ShouldBeEqualError(
@@ -205,7 +386,7 @@ class ValidationConfig(Config):
                     default=const.INEQUAL,
                 )
             ) != hardcoded_value and (
-                "shouldbehardcoded"
+                ShouldBeHardcodedError.SUPPRESSION_COMMENT
                 not in entity_yaml.suppressions__.get(json_path_str.split(".")[-1], ())
             ):
                 self.issues[entity_yaml.file__].append(
@@ -226,15 +407,20 @@ class ValidationConfig(Config):
             try:
                 get_json_value(entity_yaml, json_path_str)
             except JsonPathNotFoundError as exc:
-                self.issues[entity_yaml.file__].append(ShouldExistError(json_path_str, exc))
+                self.issues[entity_yaml.file__].append(
+                    ShouldExistError(json_path_str, exc),
+                )
 
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
-        if "shouldmatchfilename" in entity_yaml.suppressions__.get("*", ()):
+        if ShouldMatchFileNameError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         for json_path_str in self.should_match_filename:
-            if "shouldmatchfilename" in entity_yaml.suppressions__.get(
+            if ShouldMatchFileNameError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
                 json_path_str.split(".")[-1],
                 (),
             ):
@@ -258,11 +444,14 @@ class ValidationConfig(Config):
                 continue
 
     def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
-        if "shouldmatchfilepath" in entity_yaml.suppressions__.get("*", ()):
+        if ShouldMatchFilePathError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
+            "*",
+            (),
+        ):
             return
 
         for json_path_str, config in self.should_match_filepath.items():
-            if "shouldmatchfilepath" in entity_yaml.suppressions__.get(
+            if ShouldMatchFilePathError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
                 json_path_str.split(".")[-1],
                 (),
             ):
@@ -339,6 +528,7 @@ class ValidationConfig(Config):
     def validators(self) -> tuple[Callable[[Entity], None], ...]:
         """Get the validation functions for the package."""
         return (
+            self._validate_jinja2_templates,
             self._validate_known_entity_ids,
             self._validate_should_be_equal,
             self._validate_should_be_hardcoded,

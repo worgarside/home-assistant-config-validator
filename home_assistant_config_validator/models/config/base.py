@@ -13,7 +13,6 @@ from typing import ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
-from wg_utilities.functions.json import JSONObj
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
@@ -113,7 +112,9 @@ class Config(BaseModel, ABC):
 
 
 @lru_cache
-def _load_user_pch_configuration() -> dict[str, dict[const.ConfigurationType, JSONObj]]:
+def _load_user_pch_configuration() -> (
+    dict[str, dict[const.ConfigurationType, dict[str, object]]]
+):
     if not args.PCH_CONFIG.exists():
         LOGGER.warning(
             "No user PCH configuration found at %s",
