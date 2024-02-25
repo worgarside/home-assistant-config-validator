@@ -37,7 +37,6 @@ from .ha_yaml_loader import (
     load_yaml,
     parse_jsonpath,
     set_json_value,
-    subclasses_recursive,
 )
 from .helpers import format_output
 
@@ -75,7 +74,6 @@ __all__ = [
     "ShouldExistError",
     "ShouldMatchFileNameError",
     "ShouldMatchFilePathError",
-    "subclasses_recursive",
     "Include",
     "InvalidTemplateError",
     "entity_id_check_callback",

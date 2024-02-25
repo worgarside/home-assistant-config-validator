@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Collection, Generator
+from collections.abc import Collection, Generator
 from contextlib import suppress
 from dataclasses import dataclass, field
 from functools import cached_property, lru_cache
@@ -32,6 +32,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validat
 from ruamel.yaml import YAML, ScalarNode
 from ruamel.yaml.comments import CommentedBase, CommentedMap, CommentedSeq
 from ruamel.yaml.representer import Representer
+from wg_utilities.functions import subclasses_recursive
 from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
 from wg_utilities.helpers.processor import JProc
 
@@ -869,18 +870,4 @@ def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
     return parse(__jsonpath)
 
 
-def subclasses_recursive(
-    __cls: type[Any],
-    /,
-    *,
-    condition: None | Callable[[type[Any]], bool] = None,
-) -> Generator[type[Any], None, None]:
-    """Get all subclasses of a class recursively."""
-    for subclass in __cls.__subclasses__():
-        if condition is None or condition(subclass) is True:
-            yield subclass
-
-        yield from subclasses_recursive(subclass, condition=condition)
-
-
-__all__ = ["load_yaml", "subclasses_recursive"]
+__all__ = ["load_yaml"]
