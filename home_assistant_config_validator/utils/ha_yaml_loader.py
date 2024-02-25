@@ -81,7 +81,12 @@ def entity_id_check_callback(
 
 
 def parse_hacv_comment(cmt: str, /) -> dict[str, set[str]]:
-    """Parse a comment for suppressing a Home Assistant Config Validator error."""
+    """Parse a comment for suppressing a Home Assistant Config Validator error.
+
+    Example:
+        >>> parse_hacv_comment("# # hacv disable: error1:arg1,arg2;error2:arg1,arg2")
+        {"error1": {"arg1", "arg2"}, "error2": {"arg1", "arg2"}}
+    """
     parsed: dict[str, set[str]] = {}
     for chained_comment in (
         cmt.strip().lower().removeprefix(Entity.SUPPRESSION_COMMENT_PREFIX).split(";")
