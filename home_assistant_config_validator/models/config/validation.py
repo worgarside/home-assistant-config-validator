@@ -25,6 +25,7 @@ from wg_utilities.helpers.processor import JProc
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
     Entity,
+    FixableConfigurationError,
     InvalidConfigurationError,
     InvalidDependencyError,
     InvalidTemplateError,
@@ -520,7 +521,9 @@ class ValidationConfig(Config):
             for validator in self.validators:
                 validator(entity)
 
-            if args.AUTOFIX and self.issues[entity.file__]:
+            if args.AUTOFIX and any(
+                isinstance(i, FixableConfigurationError) for i in self.issues[entity.file__]
+            ):
                 entity.autofix_file_issues(self.issues[entity.file__])
 
         return self.issues
