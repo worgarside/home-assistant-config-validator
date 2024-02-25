@@ -236,9 +236,8 @@ class ValidationConfig(Config):
 
     KNOWN_ENTITY_IDS: ClassVar[tuple[str, ...]]
 
-    # No autoescape needed, it's my YAML
     JINJA_ENV: ClassVar[Environment] = Environment(
-        autoescape=False,  # noqa: S701
+        autoescape=True,
         extensions=["jinja2.ext.loopcontrols"],
     )
 

@@ -100,11 +100,15 @@ JINJA_TESTS: Final[tuple[str, ...]] = (
     "match",
     "search",
     "contains",
+    "list",
 )
 
 JINJA_VARS: Final[set[str]] = {
     "as_timestamp",
+    "device_attr",
+    "device_id",
     "distance",
+    "float",
     "has_value",
     "iif",
     "is_number",
