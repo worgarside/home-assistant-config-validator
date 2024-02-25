@@ -7,6 +7,7 @@ from .exception import (
     EntityDefinitionError,
     FileContentError,
     FileContentTypeError,
+    FixableConfigurationError,
     HomeAssistantConfigurationError,
     InvalidConfigurationError,
     InvalidDependencyError,
@@ -77,4 +78,5 @@ __all__ = [
     "Include",
     "InvalidTemplateError",
     "entity_id_check_callback",
+    "FixableConfigurationError",
 ]
