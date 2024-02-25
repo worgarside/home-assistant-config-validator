@@ -9,7 +9,8 @@ from logging import getLogger
 from pathlib import Path, PurePath
 from typing import Any, ClassVar, Self
 
-from wg_utilities.functions.json import JSONObj, process_json_object
+from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
+from wg_utilities.helpers.processor import JProc
 
 from home_assistant_config_validator.utils import (
     Entity,
@@ -21,7 +22,21 @@ from home_assistant_config_validator.utils import (
     load_yaml,
 )
 
-LOGGER = getLogger(__name__)
+LOGGER = getLogger(__name__)  # Level set by args
+
+
+@JProc.callback(allow_mutation=False)
+def _get_entity_generators(
+    _value_: TagWithPath[Any, Any],
+    entity_generators: list[EntityGenerator],
+    file: Path,
+    tag_paths: list[Path],
+) -> None:
+    entity_generators.append(_value_.entity_generator)
+
+    # Only save tags from the package file
+    if _value_.file == file:
+        tag_paths.append(_value_.absolute_path)
 
 
 @dataclass
@@ -99,10 +114,10 @@ class Package:
     @classmethod
     def parse_file(cls, file: Path) -> Package:
         """Parse a file from the packages directory."""
-        package_config: JSONObj
+        package_config: dict[str, object]
         package_config, _ = load_yaml(
             file,
-            validate_content_type=JSONObj,
+            validate_content_type=dict[str, object],
         )
 
         if len(package_config) == 1:
@@ -124,24 +139,21 @@ class Package:
         entity_generators: list[EntityGenerator] = []
         tag_paths: list[PurePath] = []
 
-        def _get_entity_generators(
-            tag: TagWithPath[Any, Any],
-            **_: str | int | None,
-        ) -> Any:
-            entity_generators.append(tag.entity_generator)
+        try:
+            jproc = JProc.from_cache("get_entity_generators")
+        except CacheIdNotFoundError:
+            jproc = JProc(
+                {TagWithPath: _get_entity_generators},
+                identifier="get_entity_generators",
+                process_type_changes=True,
+                process_pydantic_extra_fields=True,
+            )
 
-            # Only save tags from the package file
-            if tag.file == file:
-                tag_paths.append(tag.absolute_path)
-
-            return tag
-
-        process_json_object(
+        jproc.process(
             package_config,
-            target_type=TagWithPath,
-            target_processor_func=_get_entity_generators,  # type: ignore[arg-type]
-            pass_on_fail=False,
-            log_op_func_failures=False,
+            entity_generators=entity_generators,
+            file=file,
+            tag_paths=tag_paths,
         )
 
         if (pkg := cls.INSTANCES.get(file.stem)) is None:

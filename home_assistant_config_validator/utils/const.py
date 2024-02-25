@@ -6,10 +6,8 @@ import re
 from enum import StrEnum
 from os import getenv
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Final, Literal
 from uuid import uuid4
-
-from wg_utilities.functions.json import TargetProcessorFunc
 
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
@@ -159,27 +157,6 @@ class Inequal:
         return uuid4().int
 
 
-def create_entity_id_check_callback(
-    entity_ids: set[tuple[str, str]],
-) -> TargetProcessorFunc[str]:
-    """Create a callback to identify entity IDs.
-
-    Intended as a wg_utilities.function.json.TargetProcessorFunc instance.
-    """
-
-    def _cb(value: str, dict_key: str | None = None, **_: Any) -> str:
-        if (
-            ENTITY_ID_PATTERN.fullmatch(value)
-            and value.split(".")[0] in YAML_ONLY_PACKAGES
-            and value.split(".")[1] not in COMMON_SERVICES
-        ):
-            entity_ids.add((dict_key or "", value))
-
-        return value
-
-    return _cb
-
-
 INEQUAL = Inequal()
 
 __all__ = [
@@ -192,7 +169,6 @@ __all__ = [
     "INEQUAL",
     "COMMON_SERVICES",
     "YAML_ONLY_PACKAGES",
-    "create_entity_id_check_callback",
     "LOVELACE_ARCHIVE_DIR",
     "JINJA_VARS",
 ]

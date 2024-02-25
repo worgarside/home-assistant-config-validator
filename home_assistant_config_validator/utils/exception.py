@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from jinja2 import TemplateError
 
@@ -104,6 +104,7 @@ class InvalidConfigurationError(HomeAssistantConfigurationError):
     """Raised when a configuration is invalid."""
 
     fmt_msg: str
+    SUPPRESSION_COMMENT: ClassVar[str]
 
     def __init__(self, message: str) -> None:
         """Initialize the error."""
@@ -114,10 +115,9 @@ class InvalidConfigurationError(HomeAssistantConfigurationError):
 
         self.fixed = False
 
-    @classmethod
-    def suppression_comment(cls) -> str:
-        """Get the suppression comment string for this exception type."""
-        return cls.__name__.removesuffix("Error").lower()
+    def __init_subclass__(cls) -> None:
+        cls.SUPPRESSION_COMMENT = cls.__name__.removesuffix("Error").lower()
+        return super().__init_subclass__()
 
 
 class FixableConfigurationError(InvalidConfigurationError):
@@ -273,28 +273,20 @@ class InvalidTemplateError(InvalidConfigurationError):
     def __init__(
         self,
         jinja_exc: TemplateError,
-        /,
-        *,
-        dict_key: str | None = None,
+        loc: int | str,
     ) -> None:
         super().__init__(str(jinja_exc))
 
-        self.fmt_msg = (jinja_exc.message or "Invalid template").rstrip(".")
+        self.fmt_msg = (
+            f"{(jinja_exc.message or 'Invalid template').rstrip('.')} for field `{loc}`"
+        )
 
-        if dict_key:
-            self.fmt_msg += f" for field `{dict_key}`"
 
+class InvalidTemplateVarError(InvalidConfigurationError):
+    """Raised when a Jinja template has invalid/undeclared variable."""
 
-class InvalidTemplateVarsError(InvalidConfigurationError):
-    """Raised when a Jinja template has invalid/undeclared variables."""
-
-    def __init__(self, *, undeclared_vars: set[str], dict_key: str | None = None) -> None:
-        super().__init__(f"Undeclared Jinja template variables: {', '.join(undeclared_vars)}")
-
-        self.fmt_msg = f'`{"`, `".join(sorted(undeclared_vars))}`'
-
-        if dict_key:
-            self.fmt_msg += f" for field `{dict_key}`"
+    def __init__(self, *, undeclared_var: str, loc: int | str) -> None:
+        super().__init__(f"Undeclared variable `{undeclared_var}` in field `{loc}`")
 
 
 __all__ = [
@@ -308,5 +300,5 @@ __all__ = [
     "PackageDefinitionError",
     "InvalidTemplateError",
     "InvalidDependencyError",
-    "InvalidTemplateVarsError",
+    "InvalidTemplateVarError",
 ]

@@ -44,6 +44,7 @@ warn_unused_configs = true
 warn_redundant_casts = true
 
 no_implicit_optional = true
+no_implicit_reexport = true
 strict_optional = true
 
 strict_equality = true
@@ -56,6 +57,7 @@ warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
 [tool.codespell]
+ignore-words-list = "iif"
 skip = '*.json,*.csv,*.xml,*.lock'
 
 [tool.pycln]
@@ -102,6 +104,7 @@ lint.select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
+"exception.py" = ["D107"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
