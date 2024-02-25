@@ -69,9 +69,7 @@ class Config(BaseModel, ABC):
 
     INSTANCES: ClassVar[
         defaultdict[const.ConfigurationType, dict[Package, Self]]
-    ] = defaultdict(
-        dict,
-    )
+    ] = defaultdict(dict)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         arbitrary_types_allowed=True,

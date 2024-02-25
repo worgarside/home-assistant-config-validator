@@ -269,6 +269,7 @@ class ValidationConfig(Config):
     should_match_filepath: dict[JSONPathStr, ShouldMatchFilepathItem] = Field(
         default_factory=dict,
     )
+    invalid_template_variables: bool = True
 
     issues: dict[Path, list[InvalidConfigurationError]] = Field(
         default_factory=lambda: defaultdict(list),
@@ -525,14 +526,18 @@ class ValidationConfig(Config):
         return self.issues
 
     @property
-    def validators(self) -> tuple[Callable[[Entity], None], ...]:
+    def validators(self) -> list[Callable[[Entity], None]]:
         """Get the validation functions for the package."""
-        return (
-            self._validate_jinja2_templates,
+        v = [
             self._validate_known_entity_ids,
             self._validate_should_be_equal,
             self._validate_should_be_hardcoded,
             self._validate_should_exist,
             self._validate_should_match_filename,
             self._validate_should_match_filepath,
-        )
+        ]
+
+        if self.invalid_template_variables:
+            v.append(self._validate_jinja2_templates)
+
+        return v
