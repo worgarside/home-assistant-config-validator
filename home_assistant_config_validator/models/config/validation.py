@@ -153,6 +153,7 @@ def _jinja_template_validator(
     issues: list[InvalidConfigurationError],
     package_name: str,
 ) -> None:
+    """Validate Jinja2 template syntax and variable usage."""
     try:
         template = ValidationConfig.JINJA_ENV.parse(_value_)
     except TemplateError as exc:
@@ -188,6 +189,7 @@ def _jinja_template_validator(
             process_pydantic_extra_fields=True,
         )
 
+    # Process the mnodel to get variables (including response variables)
     jproc.process_model(
         entity,
         undeclared_variables=undeclared_variables,
@@ -224,6 +226,10 @@ def _remove_response_variables(
     _value_: str,
     undeclared_variables: set[str],
 ) -> None:
+    """Discount response variables declared within the entity.
+
+    https://www.home-assistant.io/docs/scripts#stopping-a-script-sequence
+    """
     with suppress(KeyError):
         undeclared_variables.remove(_value_)
 
@@ -233,6 +239,10 @@ def _remove_declared_variables(
     _value_: dict[str, str],
     undeclared_variables: set[str],
 ) -> None:
+    """Discount variable declared explicitly within the entity.
+
+    https://www.home-assistant.io/docs/scripts#variables
+    """
     undeclared_variables -= set(_value_.keys())
 
 
