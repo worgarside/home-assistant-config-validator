@@ -522,11 +522,12 @@ class ValidationConfig(Config):
                 validator(entity)
 
             if args.AUTOFIX and any(
-                isinstance(i, FixableConfigurationError) for i in self.issues[entity.file__]
+                isinstance(i, FixableConfigurationError)
+                for i in self.issues.get(entity.file__, ())
             ):
                 entity.autofix_file_issues(self.issues[entity.file__])
 
-        return self.issues
+        return {k: v for k, v in self.issues.items() if v}
 
     @property
     def validators(self) -> list[Callable[[Entity], None]]:

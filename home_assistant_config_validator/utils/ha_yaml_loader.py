@@ -147,14 +147,14 @@ class Entity(BaseModel):
         node: CommentedBase | JSONObj,
     ) -> dict[str, dict[str, Collection[str]]]:
         """Search for HACV comments in a YAML file."""
-        suppressions: dict[str, dict[str, Collection[str]]] = {}
-
         try:
-            file_comments = node.ca.items  # type: ignore[union-attr]
+            node_comment_items = node.ca.items  # type: ignore[union-attr]
         except AttributeError:
             return {}
 
-        for key, item_comments in file_comments.items():
+        suppressions: dict[str, dict[str, Collection[str]]] = {}
+
+        for key, item_comments in node_comment_items.items():
             try:
                 # End-of-line comments are in the third position (index 2)
                 if not (eol_comments := item_comments[2]):
