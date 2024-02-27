@@ -115,13 +115,16 @@ def main() -> None:
         readme.write_line("# Packages")
 
         for pkg in Package.get_packages():
-            readme.write_line(f"## {pkg.name.replace('_', ' ').title()}")
-
             markdown_lines: list[str] = []
             entity_count = 0
             for e in ReadmeEntity.get_for_package(pkg):
                 markdown_lines.extend(e.markdown_lines)
                 entity_count += 1
+
+            if not markdown_lines:
+                continue
+
+            readme.write_line(f"## {pkg.name.replace('_', ' ').title()}")
 
             readme.write_line(
                 f"<details><summary><h3>Entities ({entity_count})</h3></summary>",
