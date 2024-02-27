@@ -693,11 +693,18 @@ def load_yaml(
 
         comments_in_file = "# hacv " in raw
 
-    if validate_content_type is not None and not issubclass(
-        type(content),
-        get_origin(validate_content_type) or validate_content_type,
-    ):
-        raise FileContentTypeError(path, content, validate_content_type)
+    if validate_content_type is not None:
+        if content is None:
+            content = validate_content_type()
+        elif not issubclass(
+            type(content),
+            get_origin(validate_content_type) or validate_content_type,
+        ):
+            raise FileContentTypeError(
+                file=path,
+                content=content,
+                expected_type=validate_content_type,
+            )
 
     if not isolate_tags_from_files:
         try:
