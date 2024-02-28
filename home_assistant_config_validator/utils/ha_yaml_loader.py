@@ -744,17 +744,45 @@ def add_custom_tags_to_loader(loader: YAML) -> None:
     loader.representer.add_representer(Secret, repr_secret)
 
 
+@overload
+def _validate_json_path(
+    path: str,
+    /,
+    *,
+    return_parsed: Literal[False],
+) -> JSONPathStr:
+    ...
+
+
+@overload
+def _validate_json_path(
+    path: str,
+    /,
+    *,
+    return_parsed: Literal[True],
+) -> JSONPath:
+    ...
+
+
 @lru_cache
-def _validate_json_path(path: str, /) -> JSONPathStr:
+def _validate_json_path(
+    path: str,
+    /,
+    *,
+    return_parsed: bool = False,
+) -> JSONPathStr | JSONPath:
     """Validate a JSONPath string."""
     try:
-        parse(path)
+        parsed = parse(path)
     except JsonPathParserError:
         raise UserPCHConfigurationError(
             const.ConfigurationType.VALIDATION,
             "unknown",
             f"Invalid JSONPath: {path}",
         ) from None
+
+    if return_parsed:
+        return parsed
 
     return path
 
@@ -874,8 +902,7 @@ def parse_jsonpath(__jsonpath: str, /) -> JSONPath:
     if ROOT_PREFIX_PATTERN.match(__jsonpath):
         __jsonpath = ROOT_PREFIX_PATTERN.sub("$.", __jsonpath)
 
-    _validate_json_path(__jsonpath)
-    return parse(__jsonpath)
+    return _validate_json_path(__jsonpath, return_parsed=True)
 
 
 __all__ = ["load_yaml"]
