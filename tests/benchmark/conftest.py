@@ -55,10 +55,10 @@ def clean_repo_() -> Generator[Path, None, None]:
     with ZipFile(OUTPUT_ZIP, "r") as zip_ref:
         zip_ref.extractall(TMP_DIR)
 
-    repo_path = zip_ref.namelist()[0]
+    repo_path = TMP_DIR / zip_ref.namelist()[0]
 
     with patch.dict(environ, {"HA_REPO_PATH": str(repo_path)}):
-        yield Path(repo_path)
+        yield repo_path
 
     with suppress(FileNotFoundError):
         shutil.rmtree(repo_path)

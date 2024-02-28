@@ -109,8 +109,6 @@ class Readme:
 
 def main() -> None:
     """Generate the README for the packages."""
-    args.parse_arguments()
-
     with Readme() as readme:
         readme.write_line("# Packages")
 
@@ -134,4 +132,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    args.parse_arguments()
     main()
