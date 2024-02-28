@@ -15,10 +15,8 @@ from home_assistant_config_validator.utils import (
 )
 
 
-def main() -> None:
+def main() -> int:
     """Validate all entities."""
-    args.parse_arguments()
-
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
@@ -30,10 +28,11 @@ def main() -> None:
     if any(all_issues.values()):
         print(format_output(all_issues), file=sys.stderr)
 
-        sys.exit(1)
+        return 1
 
-    sys.exit(0)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    args.parse_arguments()
+    sys.exit(main())
