@@ -15,7 +15,6 @@ validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 [tool.poetry.dependencies]
 python = "^3.11"
 wg-utilities = { extras = ["logging"], version = "^5.11.1" }
-pytz = "^2024.1"
 jsonpath-ng = "^1.6.1"
 pydantic = "^2.6.3"
 ruamel-yaml = "^0.18.6"
