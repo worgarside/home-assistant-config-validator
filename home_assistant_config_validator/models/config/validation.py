@@ -325,10 +325,7 @@ class ValidationConfig(Config):
 
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
-        if InvalidDependencyError.SUPPRESSION_COMMENT in entity.suppressions__.get(
-            "*",
-            (),
-        ):
+        if InvalidDependencyError.SUPPRESSION_COMMENT in entity.suppressions__.get("*", ()):
             return
 
         entity_id = None
@@ -337,10 +334,7 @@ class ValidationConfig(Config):
             if (
                 dep in self.KNOWN_ENTITY_IDS
                 or InvalidDependencyError.SUPPRESSION_COMMENT
-                in entity.suppressions__.get(
-                    key,
-                    (),
-                )
+                in entity.suppressions__.get(key, ())
             ):
                 continue
 
