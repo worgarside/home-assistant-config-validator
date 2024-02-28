@@ -1,4 +1,5 @@
-"""Benchmark the `validate-entities` hook."""
+"""Fixtures for the benchmark tests."""
+
 
 from __future__ import annotations
 
@@ -13,8 +14,6 @@ from zipfile import ZipFile
 
 import pytest
 from httpx import get, stream
-
-from home_assistant_config_validator.validate_entities import main
 
 REPO_URL: Final[str] = "https://api.github.com/repos/worgarside/home-assistant/releases/latest"
 
@@ -63,10 +62,3 @@ def clean_repo_() -> Generator[Path, None, None]:
 
     with suppress(FileNotFoundError):
         shutil.rmtree(repo_path)
-
-
-@pytest.mark.usefixtures("clean_repo")
-@pytest.mark.benchmark()
-def test_validate_entities() -> None:
-    """Benchmark the `validate-entities` hook."""
-    main()
