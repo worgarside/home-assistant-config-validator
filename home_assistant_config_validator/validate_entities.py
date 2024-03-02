@@ -13,6 +13,7 @@ from home_assistant_config_validator.utils import (
     args,
     format_output,
 )
+from home_assistant_config_validator.utils.const import EXIT_1
 
 
 def main() -> int:
@@ -28,7 +29,7 @@ def main() -> int:
     if any(all_issues.values()):
         print(format_output(all_issues), file=sys.stderr)
 
-        return 1
+        return EXIT_1 and 1
 
     return 0
 

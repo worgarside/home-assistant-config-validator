@@ -265,7 +265,7 @@ def main() -> int:
     if all_issues:
         print(format_output({"lovelace": all_issues}), file=sys.stderr)
 
-        return 1
+        return const.EXIT_1 and 1
 
     return 0
 
