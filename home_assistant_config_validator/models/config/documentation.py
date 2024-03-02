@@ -77,10 +77,10 @@ class DocumentationConfig(Config):
 
         if prefix_domain:
             match entity.file__.relative_to(const.ENTITIES_DIR).parts:
-                case self.package.name, subdir, *_ if subdir in (
-                    "sensor",
+                case self.package.name, subdir, *_ if subdir in {
                     "binary_sensor",
-                ):
+                    "sensor",
+                } and self.package.name not in {"automation", "script"}:
                     id_ = f"{subdir}.{id_}"
                 case _:
                     id_ = f"{self.package.name}.{id_}"
