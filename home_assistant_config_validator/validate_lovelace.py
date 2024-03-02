@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections import defaultdict
-from pathlib import Path
-from typing import Final, Literal, TypedDict
+from typing import TYPE_CHECKING, Final, Literal, TypedDict
 
 from jinja2.defaults import (
     BLOCK_END_STRING,
@@ -32,7 +31,10 @@ from home_assistant_config_validator.utils import (
     format_output,
     load_yaml,
 )
-from home_assistant_config_validator.utils.exception import InvalidDependencyError
+from home_assistant_config_validator.utils.exception import InvalidEntityConsumedError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 VAR_TEMPLATE_BLOCK_START_STRING: Final[Literal["[["]] = "[["
 VAR_TEMPLATE_BLOCK_END_STRING: Final[Literal["]]"]] = "]]"
@@ -106,7 +108,7 @@ def check_known_entity_usages(
             continue
 
         if entity_id not in ValidationConfig.KNOWN_ENTITY_IDS:
-            all_issues[file].append(InvalidDependencyError(dict_key, entity_id))
+            all_issues[file].append(InvalidEntityConsumedError(dict_key, entity_id))
 
 
 def validate_decluttering_templates(

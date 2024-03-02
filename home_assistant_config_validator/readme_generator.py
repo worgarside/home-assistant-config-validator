@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from functools import lru_cache
-from io import TextIOWrapper
 from logging import getLogger
-from pathlib import Path
-from types import TracebackType
-from typing import Final, Literal
+from typing import TYPE_CHECKING, Final, Literal
 
 from home_assistant_config_validator.models import Package, ReadmeEntity
 from home_assistant_config_validator.utils import args, const
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from io import TextIOWrapper
+    from pathlib import Path
+    from types import TracebackType
 
 LOGGER = getLogger(__name__)
 

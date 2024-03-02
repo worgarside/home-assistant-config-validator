@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from logging import getLogger
-from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from . import const
 from .exception import (
     FixableConfigurationError,
     InvalidConfigurationError,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 LOGGER = getLogger(__name__)
 

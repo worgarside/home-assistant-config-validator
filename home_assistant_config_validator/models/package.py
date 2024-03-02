@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator, Iterable
+from collections.abc import Generator, Iterable  # noqa: TCH003
 from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger

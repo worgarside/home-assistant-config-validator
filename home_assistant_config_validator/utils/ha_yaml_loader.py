@@ -13,6 +13,7 @@ from logging import getLogger
 from pathlib import Path, PurePath
 from tempfile import NamedTemporaryFile
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     ClassVar,
@@ -31,7 +32,6 @@ from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore[import-un
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 from ruamel.yaml import YAML, ScalarNode
 from ruamel.yaml.comments import CommentedBase, CommentedMap, CommentedSeq
-from ruamel.yaml.representer import Representer
 from wg_utilities.functions import subclasses_recursive
 from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
 from wg_utilities.helpers.processor import JProc
@@ -46,6 +46,9 @@ from .exception import (
     JsonPathNotFoundError,
     UserPCHConfigurationError,
 )
+
+if TYPE_CHECKING:
+    from ruamel.yaml.representer import Representer
 
 LOGGER = getLogger(__name__)
 
@@ -74,12 +77,11 @@ def entity_id_check_callback(
     entity_ids: set[tuple[str, str]],
 ) -> None:
     """Identify entity IDs in strings."""
-    if (
-        const.ENTITY_ID_PATTERN.fullmatch(_value_)
-        and _value_.split(".")[0] in const.YAML_ONLY_PACKAGES
-        and _value_.split(".")[1] not in const.COMMON_SERVICES
-    ):
-        entity_ids.add((str(_loc_ or "") if _obj_type_ is dict else "", _value_))
+    if matched := const.ENTITY_ID_PATTERN.fullmatch(_value_):
+        domain, id_ = matched.groups()
+
+        if not (id_ in const.COMMON_SERVICES and domain in const.COMMON_SERVICES[id_]):
+            entity_ids.add((str(_loc_ or "") if _obj_type_ is dict else "", _value_))
 
 
 def parse_hacv_comment(cmt: str, /) -> dict[str, set[str]]:
@@ -112,6 +114,7 @@ class Entity(BaseModel):
             set[str],  # argument(s)
         ],
     ] = Field(default_factory=dict, exclude=True)
+    jinja_consumed_entities__: set[tuple[str, str]] = Field(default_factory=set, exclude=True)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", validate_assignment=True)
 
@@ -732,7 +735,7 @@ def add_custom_tags_to_loader(loader: YAML) -> None:
         try:
             loader.constructor.add_constructor(tag_class.TAG, tag_class.construct)
             LOGGER.debug("Added constructor for %s", tag_class.TAG)
-        except AttributeError:
+        except AttributeError:  # noqa: PERF203
             continue
 
     def repr_secret(
@@ -750,8 +753,7 @@ def _validate_json_path(
     /,
     *,
     return_parsed: Literal[False],
-) -> JSONPathStr:
-    ...
+) -> JSONPathStr: ...
 
 
 @overload
@@ -760,8 +762,7 @@ def _validate_json_path(
     /,
     *,
     return_parsed: Literal[True],
-) -> JSONPath:
-    ...
+) -> JSONPath: ...
 
 
 @lru_cache
@@ -801,8 +802,7 @@ def get_json_value(
     /,
     valid_type: Literal[None] = None,
     default: object = ...,
-) -> object:
-    ...
+) -> object: ...
 
 
 @overload
@@ -812,8 +812,7 @@ def get_json_value(
     /,
     valid_type: type[G],
     default: object = NO_DEFAULT,
-) -> G:
-    ...
+) -> G: ...
 
 
 def get_json_value(

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from pytest_codspeed.plugin import BenchmarkFixture  # type: ignore[import-untyped]
+
+if TYPE_CHECKING:
+    from pytest_codspeed.plugin import BenchmarkFixture  # type: ignore[import-untyped]
 
 
 @pytest.mark.usefixtures("clean_repo")
