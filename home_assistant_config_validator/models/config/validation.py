@@ -9,7 +9,7 @@ from enum import StrEnum
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path  # noqa: TCH003
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from jinja2 import Environment, TemplateError, meta
 from jinja2.defaults import (
@@ -341,6 +341,10 @@ class ValidationConfig(Config):
     issues: dict[Path, list[InvalidConfigurationError]] = Field(
         default_factory=lambda: defaultdict(list),
     )
+
+    invalid_template_variables: Annotated[
+        bool, Field(deprecated="This has been replaced by the `disable` field")
+    ] = False
 
     def model_post_init(self, *_: Any, **__: Any) -> None:
         """Post-initialisation steps for the model."""
