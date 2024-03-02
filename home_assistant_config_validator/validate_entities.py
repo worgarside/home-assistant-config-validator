@@ -1,8 +1,9 @@
 """Validate Home Assistant configurations."""
+
 from __future__ import annotations
 
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.models.config import (
@@ -13,6 +14,9 @@ from home_assistant_config_validator.utils import (
     args,
     format_output,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def main() -> int:

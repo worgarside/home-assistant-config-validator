@@ -24,29 +24,59 @@ NULL_PATH: Final[Path] = Path("/dev/null")
 
 SNAKE_SLUG_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$",
+    r"^([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$",
     flags=re.IGNORECASE,
 )
 
 
-COMMON_SERVICES: Final[tuple[str, ...]] = (
-    "decrement",
-    "increment",
-    "pause",
-    "play",
-    "reload",
-    "select_option",
-    "set_datetime",
-    "set_level",
-    "set_options",
-    "set_value",
-    "set_value",
-    "start",
-    "stop",
-    "toggle",
-    "turn_off",
-    "turn_on",
-)
+COMMON_SERVICES: Final[dict[str, set[str]]] = {
+    "decrement": {"input_number"},
+    "increment": {"input_number"},
+    "pause": {"media_player"},
+    "play": {"media_player"},
+    "reload": {"automation", "script", "scene", "group"},
+    "select_option": {"input_select"},
+    "set_datetime": {"input_datetime"},
+    "set_level": {"light", "cover"},
+    "set_options": {"input_select"},
+    "set_value": {"input_number", "input_text"},
+    "start": {"script", "automation"},
+    "stop": {"script", "automation"},
+    "toggle": {"cover", "input_boolean", "light", "switch", "media_player"},
+    "turn_off": {
+        "automation",
+        "input_boolean",
+        "light",
+        "switch",
+        "media_player",
+        "cover",
+        "script",
+        "scene",
+        "group",
+    },
+    "turn_on": {
+        "automation",
+        "input_boolean",
+        "light",
+        "switch",
+        "media_player",
+        "cover",
+        "script",
+        "scene",
+        "group",
+    },
+}
+
+JINJA_ENTITY_CONSUMERS: Final[set[str]] = {
+    "device_attr",
+    "device_id",
+    "has_value",
+    "is_state",
+    "is_state_attr",
+    "state_attr",
+    "states",
+}
+
 
 JINJA_FILTERS: Final[tuple[str, ...]] = (
     "round",
@@ -103,23 +133,16 @@ JINJA_TESTS: Final[tuple[str, ...]] = (
     "list",
 )
 
-JINJA_VARS: Final[set[str]] = {
+JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
     "as_timestamp",
-    "device_attr",
-    "device_id",
     "distance",
     "float",
-    "has_value",
     "iif",
     "is_number",
-    "is_state",
-    "is_state_attr",
     "max",
     "min",
     "now",
     "repeat",
-    "state_attr",
-    "states",
     "this",
     "timedelta",
     "today_at",
@@ -128,19 +151,6 @@ JINJA_VARS: Final[set[str]] = {
     "value_json",
     "wait",
 }
-
-YAML_ONLY_PACKAGES: Final[tuple[str, ...]] = (
-    "automation",
-    "input_boolean",
-    "input_button",
-    "input_datetime",
-    "input_number",
-    "input_select",
-    "input_text",
-    "script",
-    "shell_command",
-    "var",
-)
 
 
 class ConfigurationType(StrEnum):
@@ -172,7 +182,6 @@ __all__ = [
     "ConfigurationType",
     "INEQUAL",
     "COMMON_SERVICES",
-    "YAML_ONLY_PACKAGES",
     "LOVELACE_ARCHIVE_DIR",
     "JINJA_VARS",
 ]

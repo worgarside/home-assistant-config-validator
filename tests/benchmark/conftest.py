@@ -1,19 +1,20 @@
 """Fixtures for the benchmark tests."""
 
-
 from __future__ import annotations
 
 import shutil
-from collections.abc import Generator
 from contextlib import suppress
 from os import environ
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 from unittest.mock import patch
 from zipfile import ZipFile
 
 import pytest
 from httpx import get, stream
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 REPO_URL: Final[str] = "https://api.github.com/repos/worgarside/home-assistant/releases/latest"
 

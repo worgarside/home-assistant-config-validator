@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from typing import Any, ClassVar
-
-from jinja2 import TemplateError
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from . import const
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from jinja2 import TemplateError
 
 
 class ConfigurationError(Exception):
@@ -182,10 +184,11 @@ class InvalidFieldTypeError(InvalidConfigurationError):
         expected_type: type | tuple[type, ...],
     ) -> None:
         """Initialize the error."""
-        if isinstance(value, list):
-            types = ", ".join(type(v).__name__ for v in value)
-        else:
-            types = type(value).__name__
+        types = (
+            ", ".join(type(v).__name__ for v in value)
+            if isinstance(value, list)
+            else type(value).__name__
+        )
 
         super().__init__(
             f"{field} has invalid type {types}, expected {expected_type!s}",
@@ -202,14 +205,12 @@ class InvalidFieldValueError(InvalidConfigurationError):
         self.fmt_msg = message
 
 
-class InvalidDependencyError(InvalidConfigurationError):
+class InvalidEntityConsumedError(InvalidConfigurationError):
     """Raised when an entity has an invalid dependency."""
 
-    def __init__(self, entity: str, dependency: str) -> None:
+    def __init__(self, key: str, dependency: str) -> None:
         """Initialize the error."""
-        super().__init__(f"{entity} has invalid dependency: {dependency}")
-
-        self.fmt_msg = dependency
+        super().__init__(f"{key!r} consumes `{dependency}`")
 
 
 class ShouldBeHardcodedError(FixableConfigurationError):
@@ -299,6 +300,6 @@ __all__ = [
     "PackageNotFoundError",
     "PackageDefinitionError",
     "InvalidTemplateError",
-    "InvalidDependencyError",
+    "InvalidEntityConsumedError",
     "InvalidTemplateVarError",
 ]

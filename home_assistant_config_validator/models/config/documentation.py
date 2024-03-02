@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import ClassVar, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from home_assistant_config_validator.utils import (
     Entity,
@@ -18,12 +18,18 @@ from home_assistant_config_validator.utils.exception import FileContentError
 from .base import Config
 
 
+class GlobalConfig(BaseModel):
+    """Global configuration for documentation."""
+
+
 class DocumentationConfig(Config):
     """Dataclass for a package's documentation configuration."""
 
-    CONFIGURATION_TYPE: ClassVar[
-        Literal[const.ConfigurationType.DOCUMENTATION]
-    ] = const.ConfigurationType.DOCUMENTATION
+    CONFIGURATION_TYPE: ClassVar[Literal[const.ConfigurationType.DOCUMENTATION]] = (
+        const.ConfigurationType.DOCUMENTATION
+    )
+
+    _GLOBAL_CONFIG_CLASS: ClassVar[type[GlobalConfig]] = GlobalConfig
 
     description: str | None = Field(default=None)
     name: str = Field(default="name")
@@ -70,7 +76,14 @@ class DocumentationConfig(Config):
             )
 
         if prefix_domain:
-            return f"{self.package.name}.{id_}"
+            match entity.file__.relative_to(const.ENTITIES_DIR).parts:
+                case self.package.name, subdir, *_ if subdir in (
+                    "sensor",
+                    "binary_sensor",
+                ):
+                    id_ = f"{subdir}.{id_}"
+                case _:
+                    id_ = f"{self.package.name}.{id_}"
 
         return id_
 

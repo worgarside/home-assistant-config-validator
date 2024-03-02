@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Generator
 from dataclasses import dataclass
 from json import dumps
 from pathlib import Path
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from home_assistant_config_validator.models.config import DocumentationConfig
 from home_assistant_config_validator.utils import Entity, Secret, const, get_json_value
 
-from .package import Package
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from .package import Package
 
 
 @dataclass

@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from abc import ABC
 from collections import defaultdict
-from collections.abc import Iterable
 from functools import lru_cache
 from json import loads
 from logging import getLogger
 from re import escape, sub
-from typing import ClassVar, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 
-from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from home_assistant_config_validator.models import Package
 
 LOGGER = getLogger(__name__)
 
@@ -67,9 +70,12 @@ class Config(BaseModel, ABC):
     CONFIGURATION_TYPE: ClassVar[const.ConfigurationType]
     package: Package
 
-    INSTANCES: ClassVar[
-        defaultdict[const.ConfigurationType, dict[Package, Self]]
-    ] = defaultdict(dict)
+    INSTANCES: ClassVar[defaultdict[const.ConfigurationType, dict[Package, Self]]] = (
+        defaultdict(dict)
+    )
+
+    GLOBAL_CONFIG: ClassVar[BaseModel]
+    _GLOBAL_CONFIG_CLASS: ClassVar[type[BaseModel]]
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         arbitrary_types_allowed=True,
@@ -84,7 +90,8 @@ class Config(BaseModel, ABC):
 
         try:
             package_config = (
-                _load_user_pch_configuration()
+                cls.user_configuration()
+                .get("packages", {})
                 .get(package.pkg_name, {})
                 .get(cls.CONFIGURATION_TYPE)
             )
@@ -94,6 +101,11 @@ class Config(BaseModel, ABC):
                 package.pkg_name,
                 repr(exc),
             ) from exc
+
+        if not hasattr(cls, "GLOBAL_CONFIG"):
+            cls.GLOBAL_CONFIG = cls._GLOBAL_CONFIG_CLASS.model_validate(
+                cls.user_configuration().get(cls.CONFIGURATION_TYPE.lower(), {}),
+            )
 
         if (
             cls.CONFIGURATION_TYPE == const.ConfigurationType.VALIDATION
@@ -108,25 +120,26 @@ class Config(BaseModel, ABC):
 
         return cls(package=package, **(package_config or {}))
 
+    @staticmethod
+    @lru_cache
+    def user_configuration() -> (
+        dict[str, dict[str, dict[const.ConfigurationType, dict[str, object]]]]
+    ):
+        """Return the user's PCH configuration."""
+        if not args.PCH_CONFIG.exists():
+            LOGGER.warning(
+                "No user PCH configuration found at %s",
+                args.PCH_CONFIG,
+            )
+            return {}
 
-@lru_cache
-def _load_user_pch_configuration() -> (
-    dict[str, dict[const.ConfigurationType, dict[str, object]]]
-):
-    if not args.PCH_CONFIG.exists():
-        LOGGER.warning(
-            "No user PCH configuration found at %s",
-            args.PCH_CONFIG,
-        )
-        return {}
+        if not args.PCH_CONFIG.is_file():
+            raise FileNotFoundError(args.PCH_CONFIG)
 
-    if not args.PCH_CONFIG.is_file():
-        raise FileNotFoundError(args.PCH_CONFIG)
+        if args.PCH_CONFIG.suffix == ".json":
+            return loads(args.PCH_CONFIG.read_text())  # type: ignore[no-any-return]
 
-    if args.PCH_CONFIG.suffix == ".json":
-        return loads(args.PCH_CONFIG.read_text())["packages"]  # type: ignore[no-any-return]
+        if args.PCH_CONFIG.suffix in (".yaml", ".yml"):
+            return YAML(typ="safe").load(args.PCH_CONFIG)  # type: ignore[no-any-return]
 
-    if args.PCH_CONFIG.suffix in (".yaml", ".yml"):
-        return YAML(typ="safe").load(args.PCH_CONFIG)["packages"]  # type: ignore[no-any-return]
-
-    raise ValueError(args.PCH_CONFIG.suffix)
+        raise ValueError(args.PCH_CONFIG.suffix)
