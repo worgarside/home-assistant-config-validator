@@ -13,12 +13,11 @@ from typing import TYPE_CHECKING, ClassVar, Self
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 
+from home_assistant_config_validator.models import Package  # noqa: TCH001
 from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-
-    from home_assistant_config_validator.models import Package
 
 LOGGER = getLogger(__name__)
 

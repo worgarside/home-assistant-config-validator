@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator, Iterable  # noqa: TCH003
 from dataclasses import dataclass
 from functools import cached_property
 from logging import getLogger
 from pathlib import Path, PurePath
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import Any, ClassVar, Self
 
 from wg_utilities.helpers.mixin.instance_cache import CacheIdNotFoundError
 from wg_utilities.helpers.processor import JProc
@@ -20,9 +21,6 @@ from home_assistant_config_validator.utils import (
     const,
     load_yaml,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Generator, Iterable
 
 LOGGER = getLogger(__name__)  # Level set by args
 

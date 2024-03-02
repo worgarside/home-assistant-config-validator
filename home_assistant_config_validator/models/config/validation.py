@@ -8,6 +8,7 @@ from contextlib import suppress
 from enum import StrEnum
 from functools import lru_cache
 from logging import getLogger
+from pathlib import Path  # noqa: TCH003
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from jinja2 import Environment, TemplateError, meta
@@ -47,7 +48,6 @@ from .documentation import DocumentationConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
-    from pathlib import Path
 
 LOGGER = getLogger(__name__)
 
