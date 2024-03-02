@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Final, Literal
 from uuid import uuid4
 
+EXIT_1: Final[bool] = getenv("EXIT_1", "1") == "1"
+
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
 EXT: Final[Literal[".yaml"]] = ".yaml"
