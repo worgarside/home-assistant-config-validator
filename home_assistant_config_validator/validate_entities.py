@@ -16,7 +16,7 @@ from home_assistant_config_validator.utils import (
 from home_assistant_config_validator.utils.const import EXIT_1
 
 
-def main() -> int:
+def main() -> bool:
     """Validate all entities."""
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
@@ -29,9 +29,9 @@ def main() -> int:
     if any(all_issues.values()):
         print(format_output(all_issues), file=sys.stderr)
 
-        return EXIT_1 and 1
+        return EXIT_1
 
-    return 0
+    return False
 
 
 if __name__ == "__main__":
