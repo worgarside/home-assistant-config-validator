@@ -228,7 +228,7 @@ def get_unused_files(
     return dashboards
 
 
-def main() -> int:
+def main() -> bool:
     """Validate all entities."""
     args.parse_arguments(validate_all_packages_override=False)
     llc, _ = load_yaml(const.LOVELACE_ROOT_FILE)
@@ -267,9 +267,9 @@ def main() -> int:
     if all_issues:
         print(format_output({"lovelace": all_issues}), file=sys.stderr)
 
-        return 1
+        return const.EXIT_1
 
-    return 0
+    return False
 
 
 if __name__ == "__main__":

@@ -14,12 +14,13 @@ from home_assistant_config_validator.utils import (
     args,
     format_output,
 )
+from home_assistant_config_validator.utils.const import EXIT_1
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def main() -> int:
+def main() -> bool:
     """Validate all entities."""
     all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
 
@@ -32,9 +33,9 @@ def main() -> int:
     if any(all_issues.values()):
         print(format_output(all_issues), file=sys.stderr)
 
-        return 1
+        return EXIT_1
 
-    return 0
+    return False
 
 
 if __name__ == "__main__":
