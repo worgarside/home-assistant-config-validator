@@ -29,7 +29,7 @@ repos:
           - wg-utilities==5.14.1
           - pytest==8.1.1
           - httpx==0.27.0
-          - pytest-codspeed==2.2.0
+          - pytest-codspeed==2.2.1
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
