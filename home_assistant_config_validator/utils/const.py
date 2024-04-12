@@ -41,6 +41,7 @@ COMMON_SERVICES: Final[dict[str, set[str]]] = {
     "set_datetime": {"input_datetime"},
     "set_level": {"light", "cover"},
     "set_options": {"input_select"},
+    "set": {"var"},
     "set_value": {"input_number", "input_text"},
     "start": {"script", "automation"},
     "stop": {"script", "automation"},
