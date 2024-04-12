@@ -13,7 +13,7 @@ validate-entities = "home_assistant_config_validator.validate_entities:main"
 validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 jsonpath-ng = "^1.6.1"
 pydantic = "^2.7.0"
 ruamel-yaml = "^0.18.6"
