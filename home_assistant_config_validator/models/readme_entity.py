@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from dataclasses import dataclass
 from json import dumps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Final
 
-from home_assistant_config_validator.models.config import DocumentationConfig
+from jinja2 import TemplateError
+
+from home_assistant_config_validator.models.config import DocumentationConfig, ValidationConfig
 from home_assistant_config_validator.utils import Entity, Secret, const, get_json_value
 
 if TYPE_CHECKING:
@@ -38,7 +41,7 @@ class ReadmeEntity:
 
     @staticmethod
     def markdown_format(
-        __v: Any,
+        __v: str | object,
         /,
         *,
         target_url: str | None = None,
@@ -52,6 +55,13 @@ class ReadmeEntity:
             language = "json"  # Won't matter if __v is a bool
             __v = dumps(__v, indent=2)
             code = True
+        elif isinstance(__v, str) and (
+            ("{{" in __v and "}}" in __v) or ("{%" in __v and "%}" in __v)
+        ):
+            with suppress(TemplateError):
+                ValidationConfig.JINJA_ENV.parse(__v)
+                code = True
+                language = "jinja"
 
         if code or (isinstance(__v, str) and const.SNAKE_SLUG_PATTERN.fullmatch(__v)):
             __v = str(__v).strip(" `")
