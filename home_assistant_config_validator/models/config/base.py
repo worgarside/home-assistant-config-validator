@@ -50,7 +50,7 @@ def replace_non_alphanumeric(
         ignore_chars = "".join(ignore_chars)
 
     # Replaces non-alphanumeric characters with `replace_with`
-    formatted = sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", replace_with, string)
+    formatted = sub(rf"[^a-zA-Z0-9{escape(ignore_chars)}]", replace_with, escape(string))
 
     if replace_with:
         # Replaces double (or more) `replace_with` with a single `replace_with`
@@ -59,6 +59,10 @@ def replace_non_alphanumeric(
             replace_with,
             formatted,
         )
+
+    if replace_with != " ":
+        # Replace double (or more) spaces with a single space
+        formatted = sub(r"\s{2,}", " ", formatted)
 
     return formatted.casefold()
 
