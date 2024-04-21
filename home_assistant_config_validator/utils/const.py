@@ -145,6 +145,7 @@ JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
     "max",
     "min",
     "now",
+    "null",
     "repeat",
     "this",
     "timedelta",
