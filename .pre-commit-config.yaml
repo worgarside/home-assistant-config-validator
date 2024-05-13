@@ -26,7 +26,7 @@ repos:
           - jsonpath-ng==1.6.1
           - pydantic[mypy]==2.7.0
           - ruamel-yaml==0.18.6
-          - wg-utilities==5.15.1
+          - wg-utilities==5.15.3
           - pytest==8.1.1
           - httpx==0.27.0
           - pytest-codspeed==2.2.1
