@@ -64,7 +64,7 @@ def replace_non_alphanumeric(
         # Replace double (or more) spaces with a single space
         formatted = sub(r"\s{2,}", " ", formatted)
 
-    return formatted.casefold()
+    return formatted.casefold().strip(replace_with)
 
 
 class Config(BaseModel, ABC):
