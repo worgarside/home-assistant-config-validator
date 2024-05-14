@@ -4,6 +4,9 @@ install:
 update:
 	poetry cache clear --all _default_cache && poetry update
 
+test:
+	@poetry run pytest
+
 try-repo:
 	git add . && cd ../home-assistant && git add . && pre-commit try-repo ../home-assistant-config-validator
 

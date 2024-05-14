@@ -8,6 +8,7 @@ from os import environ
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 from unittest.mock import patch
+from uuid import uuid4
 from zipfile import ZipFile
 
 import pytest
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 REPO_URL: Final[str] = "https://api.github.com/repos/worgarside/home-assistant/releases/latest"
 
-TMP_DIR: Final[Path] = Path.cwd() / ".tmp"
+TMP_DIR: Final[Path] = Path.cwd() / f".tmp_{uuid4()}"
 OUTPUT_ZIP: Final[Path] = TMP_DIR / "repo.zip"
 
 
