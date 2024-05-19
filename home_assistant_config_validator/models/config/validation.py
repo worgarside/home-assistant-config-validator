@@ -343,7 +343,8 @@ class ValidationConfig(Config):
     )
 
     invalid_template_variables: Annotated[
-        bool, Field(deprecated="This has been replaced by the `disable` field")
+        bool,
+        Field(deprecated="This has been replaced by the `disable` field"),
     ] = False
 
     def model_post_init(self, *_: Any, **__: Any) -> None:

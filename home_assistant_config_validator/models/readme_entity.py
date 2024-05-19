@@ -108,7 +108,8 @@ class ReadmeEntity:
             )
 
             if not (val := get_json_value(self.entity, field, default=None)):
-                yield f"- {key}:"
+                if self.docs_config.include_nulls:
+                    yield f"- {key}:"
                 continue
 
             if isinstance(val, Secret):
