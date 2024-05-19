@@ -36,7 +36,8 @@ class DocumentationConfig(Config):
     id: str | list[str] = Field(default="id")
 
     include_nulls: bool = Field(
-        default=False, description="Whether to include fields which have no value."
+        default=False,
+        description="Whether to include fields which have no value.",
     )
 
     extra: list[JSONPathStr] = Field(default_factory=list)

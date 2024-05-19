@@ -117,7 +117,6 @@ lint.select = [
 ]
 lint.ignore = [
   "ISC001", # https://docs.astral.sh/ruff/rules/single-line-implicit-string-concatenation/
-  "COM812", # https://docs.astral.sh/ruff/rules/missing-trailing-comma/
 ]
 
 [tool.ruff.lint.per-file-ignores]
