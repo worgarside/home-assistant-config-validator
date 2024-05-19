@@ -35,6 +35,10 @@ class DocumentationConfig(Config):
     name: str = Field(default="name")
     id: str | list[str] = Field(default="id")
 
+    include_nulls: bool = Field(
+        default=False, description="Whether to include fields which have no value."
+    )
+
     extra: list[JSONPathStr] = Field(default_factory=list)
 
     def get_description(self, entity: Entity, /) -> str:
