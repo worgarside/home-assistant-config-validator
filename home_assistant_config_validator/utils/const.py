@@ -78,6 +78,8 @@ JINJA_ENTITY_CONSUMERS: Final[set[str]] = {
     "is_state_attr",
     "state_attr",
     "states",
+    "area_entities",
+    "expand",
 }
 
 
