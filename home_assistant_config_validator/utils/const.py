@@ -156,6 +156,8 @@ JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
     "utcnow",
     "value_json",
     "wait",
+    "area_entities",
+    "expand",
 }
 
 
