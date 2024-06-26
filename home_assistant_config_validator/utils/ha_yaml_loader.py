@@ -365,7 +365,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
         _value_: Tag[ResToPath],
         file: Path,
     ) -> None:
-        if not hasattr(_value_, "file") or not _value_.file or _value_.file == const.NULL_PATH:
+        if not hasattr(_value_, "file") or _value_.file == const.NULL_PATH:
             _value_.file = file.resolve(strict=True)
 
     @abstractmethod

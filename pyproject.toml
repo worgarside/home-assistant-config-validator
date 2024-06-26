@@ -35,25 +35,60 @@ requires = ["poetry-core"]
 #######################
 
 [tool.mypy]
-plugins = "pydantic.mypy"
+plugins = ["pydantic.mypy"]
+
+check_untyped_defs = true
 
 disallow_any_generics = true
+disallow_incomplete_defs = true
 disallow_subclassing_any = true
 disallow_untyped_calls = true
 disallow_untyped_decorators = true
 disallow_untyped_defs = true
 
+explicit_package_bases = true
+
+ignore_missing_imports = false
+
+no_implicit_optional = true
+no_implicit_reexport = true
+
+show_column_numbers = true
+show_error_codes = true
+show_error_context = true
+
+strict = true
+strict_equality = true
+strict_optional = true
+
 warn_return_any = true
 warn_unused_ignores = true
 warn_unused_configs = true
 warn_redundant_casts = true
+warn_no_return = true
+warn_unreachable = true
 
-no_implicit_optional = true
-no_implicit_reexport = true
-strict_optional = true
-
-strict_equality = true
-show_error_codes = true
+enable_error_code = [
+  "arg-type",           # Checks for argument types in function calls.
+  "assignment",         # Validates types of variable assignments.
+  "return-value",       # Ensures that return values match the declared type.
+  "call-overload",      # Validates correct use of method/function overloads.
+  "operator",           # Checks operator usage against expected types.
+  "index",              # Validates types used in indexing operations.
+  "attr-defined",       # Checks if attributes exist in classes/objects.
+  "no-untyped-call",    # Prevents calls to untyped functions in typed contexts.
+  "unreachable",        # Warns about code that can never be executed.
+  "truthy-bool",        # Ensures that boolean expressions are boolean in type.
+  "union-attr",         # Checks for attribute access in unions safely.
+  "dict-item",          # Checks for proper types used in dictionary items.
+  "unused-awaitable",   # Warns if an awaitable is not awaited.
+  "override",           # Ensures overridden methods match the signature in base class.
+  "list-item",          # Checks type consistency of list items.
+  "return",             # Ensures all code paths in a function return a value if needed.
+  "type-var",           # Ensures type variables are used correctly.
+  "valid-type",         # Validates types used in annotations are recognized.
+  "func-returns-value", # Ensures functions declared with a return type actually return a value.
+]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -147,7 +182,6 @@ docstring-code-line-length = "dynamic"
 min_confidence = 70
 paths = ["home_assistant_config_validator"]
 sort_by_size = true
-
 
 [tool.pytest.ini_options]
 addopts = ["-n", "auto", "-vvv"]
