@@ -33,11 +33,13 @@ from home_assistant_config_validator.utils import (
     InvalidTemplateVarError,
     JsonPathNotFoundError,
     JSONPathStr,
+    MissingScriptFieldError,
     ShouldBeEqualError,
     ShouldBeHardcodedError,
     ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
+    UnexpectedScriptFieldError,
     args,
     const,
     get_json_value,
@@ -150,6 +152,16 @@ def _get_variable_setter_pattern(__var: str) -> re.Pattern[str]:
     return re.compile(rf"{{%\s*set\s*{re.escape(__var)}\s*=.+")
 
 
+@lru_cache
+def _get_script_fields() -> dict[str, dict[str, Any]]:
+    """Get the fields for each script entity."""
+    return {
+        script.file__.stem: script.get("fields", {})
+        for script in Package.by_name("script").entities
+        if getattr(script, "fields", None)
+    }
+
+
 @JProc.callback(allow_mutation=False)
 def _remove_response_variables(
     _value_: str,
@@ -168,7 +180,7 @@ def _remove_declared_variables(
     _value_: dict[str, str],
     undeclared_variables: set[str],
 ) -> None:
-    """Discount variable declared explicitly within the entity.
+    """Discount variables declared explicitly within the entity.
 
     https://www.home-assistant.io/docs/scripts#variables
     """
@@ -285,6 +297,43 @@ def _jinja_template_validator(
                 undeclared_var=var,
                 loc=_loc_,
             ),
+        )
+
+
+@JProc.callback(allow_mutation=False)
+def _validate_script_consumption_inner(
+    _value_: dict[str, Any],
+    issues: list[InvalidConfigurationError],
+) -> None:
+    if _value_["service"] == "script.turn_off":
+        return
+
+    variables = _value_.get("data", {})
+
+    if _value_["service"] in {"script.toggle", "script.turn_on"}:
+        variables = variables.get("variables", {})
+        entity_id: str | list[str] = _value_.get("target", {}).get("entity_id") or _value_.get(
+            "data",
+            {},
+        ).get("entity_id")
+
+        script_ids = entity_id if isinstance(entity_id, list) else [entity_id]
+    else:
+        script_ids = [_value_["service"]]
+
+    for script_id in script_ids:
+        if not (script_fields := _get_script_fields().get(script_id.removeprefix("script."))):
+            continue
+
+        issues.extend(
+            MissingScriptFieldError(script_id=script_id, field=name)
+            for name, config in script_fields.items()
+            if config.get("required") and name not in variables
+        )
+
+        issues.extend(
+            UnexpectedScriptFieldError(script_id=script_id, field=extra_field)
+            for extra_field in set(variables) - set(script_fields)
         )
 
 
@@ -410,6 +459,31 @@ class ValidationConfig(Config):
                 not in entity.suppressions__.get(key, ())
             ):
                 self.issues[entity.file__].append(InvalidEntityConsumedError(key, entity_id))
+
+    def _validate_script_consumption(self, entity: Entity, /) -> None:
+        if self.package.name not in {"automation", "script"}:
+            return
+
+        try:
+            jproc = JProc.from_cache("script_consumption")
+        except CacheIdNotFoundError:
+            jproc = JProc(
+                {
+                    dict: JProc.cb(
+                        _validate_script_consumption_inner,
+                        item_filter=lambda item, **_: item.get("service", "").split(".")[0]
+                        == "script",
+                    ),
+                },
+                identifier="script_consumption",
+            )
+
+        sequence_key = {
+            "automation": "action",
+            "script": "sequence",
+        }[self.package.name]
+
+        jproc.process(entity.get(sequence_key, []), issues=self.issues[entity.file__])
 
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for json_path_str_1, json_path_str_2 in self.should_be_equal:
@@ -596,6 +670,7 @@ class ValidationConfig(Config):
             (
                 self._validate_jinja2_templates,
                 self._validate_known_entity_ids,
+                self._validate_script_consumption,
                 self._validate_should_be_equal,
                 self._validate_should_be_hardcoded,
                 self._validate_should_exist,

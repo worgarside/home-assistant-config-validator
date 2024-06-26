@@ -290,6 +290,26 @@ class InvalidTemplateVarError(InvalidConfigurationError):
         super().__init__(f"Undeclared variable `{undeclared_var}` in field `{loc}`")
 
 
+class UnexpectedScriptFieldError(InvalidConfigurationError):
+    """Raised when a script is called with an unexpected field."""
+
+    def __init__(self, script_id: str, field: str) -> None:
+        """Initialize the error."""
+        super().__init__(
+            f"Unexpected field `{field}` for {script_id!r}",
+        )
+
+
+class MissingScriptFieldError(InvalidConfigurationError):
+    """Raised when a script call is missing a required field."""
+
+    def __init__(self, script_id: str, field: str) -> None:
+        """Initialize the error."""
+        super().__init__(
+            f"Missing required field `{field}` for {script_id!r}",
+        )
+
+
 __all__ = [
     "ConfigurationError",
     "UserPCHConfigurationError",
@@ -297,9 +317,11 @@ __all__ = [
     "FileContentError",
     "FileContentTypeError",
     "EntityDefinitionError",
+    "MissingScriptFieldError",
     "PackageNotFoundError",
     "PackageDefinitionError",
     "InvalidTemplateError",
     "InvalidEntityConsumedError",
     "InvalidTemplateVarError",
+    "UnexpectedScriptFieldError",
 ]
