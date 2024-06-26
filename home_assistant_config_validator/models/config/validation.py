@@ -325,11 +325,11 @@ def _validate_script_consumption_inner(
         if not (script_fields := _get_script_fields().get(script_id.removeprefix("script."))):
             continue
 
-        for name, config in script_fields.items():
-            if config.get("required") is True and name not in variables:
-                issues.append(
-                    MissingScriptFieldError(script_id=script_id, field=name),
-                )
+        issues.extend(
+            MissingScriptFieldError(script_id=script_id, field=name)
+            for name, config in script_fields.items()
+            if config.get("required") and name not in variables
+        )
 
         issues.extend(
             UnexpectedScriptFieldError(script_id=script_id, field=extra_field)
