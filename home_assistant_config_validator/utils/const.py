@@ -182,14 +182,14 @@ class Inequal:
 INEQUAL = Inequal()
 
 __all__ = [
+    "COMMON_SERVICES",
     "ENTITIES_DIR",
-    "PACKAGES_DIR",
+    "INEQUAL",
+    "JINJA_VARS",
+    "LOVELACE_ARCHIVE_DIR",
     "LOVELACE_DIR",
     "LOVELACE_ROOT_FILE",
     "NULL_PATH",
+    "PACKAGES_DIR",
     "ConfigurationType",
-    "INEQUAL",
-    "COMMON_SERVICES",
-    "LOVELACE_ARCHIVE_DIR",
-    "JINJA_VARS",
 ]

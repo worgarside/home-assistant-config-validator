@@ -26,22 +26,10 @@ from wg_utilities.helpers.processor import JProc
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.utils import (
     Entity,
-    FixableConfigurationError,
-    InvalidConfigurationError,
-    InvalidEntityConsumedError,
-    InvalidTemplateError,
-    InvalidTemplateVarError,
-    JsonPathNotFoundError,
     JSONPathStr,
-    MissingScriptFieldError,
-    ShouldBeEqualError,
-    ShouldBeHardcodedError,
-    ShouldExistError,
-    ShouldMatchFileNameError,
-    ShouldMatchFilePathError,
-    UnexpectedScriptFieldError,
     args,
     const,
+    exc,
     get_json_value,
 )
 
@@ -228,15 +216,15 @@ def _jinja_template_validator(
     _value_: str,
     _loc_: str,
     entity: Entity,
-    issues: list[InvalidConfigurationError],
+    issues: list[exc.InvalidConfigurationError],
     package_name: str,
 ) -> None:
     """Validate Jinja2 template syntax and variable usage."""
     try:
         template = ValidationConfig.JINJA_ENV.parse(_value_)
         undeclared_variables = meta.find_undeclared_variables(template) - const.JINJA_VARS
-    except TemplateError as exc:
-        issues.append(InvalidTemplateError(exc, loc=_loc_))
+    except TemplateError as err:
+        issues.append(exc.InvalidTemplateError(err, loc=_loc_))
         return
 
     if any(consumer in _value_ for consumer in const.JINJA_ENTITY_CONSUMERS):
@@ -282,7 +270,7 @@ def _jinja_template_validator(
     # Discount any suppressed vars
     if undeclared_variables and (
         suppressed := entity.suppressions__.get(_loc_, {}).get(
-            InvalidTemplateVarError.SUPPRESSION_COMMENT,
+            exc.InvalidTemplateVarError.SUPPRESSION_COMMENT,
         )
     ):
         undeclared_variables -= suppressed
@@ -293,7 +281,7 @@ def _jinja_template_validator(
             continue
 
         issues.append(
-            InvalidTemplateVarError(
+            exc.InvalidTemplateVarError(
                 undeclared_var=var,
                 loc=_loc_,
             ),
@@ -303,7 +291,7 @@ def _jinja_template_validator(
 @JProc.callback(allow_mutation=False)
 def _validate_script_consumption_inner(
     _value_: dict[str, Any],
-    issues: list[InvalidConfigurationError],
+    issues: list[exc.InvalidConfigurationError],
 ) -> None:
     if _value_["service"] == "script.turn_off":
         return
@@ -326,13 +314,13 @@ def _validate_script_consumption_inner(
             continue
 
         issues.extend(
-            MissingScriptFieldError(script_id=script_id, field=name)
+            exc.MissingScriptFieldError(script_id=script_id, field=name)
             for name, config in script_fields.items()
             if config.get("required") and name not in variables
         )
 
         issues.extend(
-            UnexpectedScriptFieldError(script_id=script_id, field=extra_field)
+            exc.UnexpectedScriptFieldError(script_id=script_id, field=extra_field)
             for extra_field in set(variables) - set(script_fields)
         )
 
@@ -387,7 +375,7 @@ class ValidationConfig(Config):
         default_factory=dict,
     )
 
-    issues: dict[Path, list[InvalidConfigurationError]] = Field(
+    issues: dict[Path, list[exc.InvalidConfigurationError]] = Field(
         default_factory=lambda: defaultdict(list),
     )
 
@@ -445,7 +433,7 @@ class ValidationConfig(Config):
 
     def _validate_known_entity_ids(self, entity: Entity, /) -> None:
         """Validate that the Entity doesn't consume any unknown entities."""
-        if InvalidEntityConsumedError.SUPPRESSION_COMMENT in entity.suppressions__.get(
+        if exc.InvalidEntityConsumedError.SUPPRESSION_COMMENT in entity.suppressions__.get(
             "*",
             (),
         ):
@@ -455,10 +443,12 @@ class ValidationConfig(Config):
             if (
                 entity_id.split(".", 1)[0] in self.GLOBAL_CONFIG.validate_domain_consumption
                 and entity_id not in self.KNOWN_ENTITY_IDS
-                and InvalidEntityConsumedError.SUPPRESSION_COMMENT
+                and exc.InvalidEntityConsumedError.SUPPRESSION_COMMENT
                 not in entity.suppressions__.get(key, ())
             ):
-                self.issues[entity.file__].append(InvalidEntityConsumedError(key, entity_id))
+                self.issues[entity.file__].append(
+                    exc.InvalidEntityConsumedError(key, entity_id),
+                )
 
     def _validate_script_consumption(self, entity: Entity, /) -> None:
         if self.package.name not in {"automation", "script"}:
@@ -502,15 +492,15 @@ class ValidationConfig(Config):
                     )
                 ):
                     self.issues[entity_yaml.file__].append(
-                        ShouldBeEqualError(
+                        exc.ShouldBeEqualError(
                             f1=json_path_str_1,
                             v1=value_1,
                             f2=json_path_str_2,
                             v2=value_2,
                         ),
                     )
-            except JsonPathNotFoundError as exc:  # noqa: PERF203
-                self.issues[entity_yaml.file__].append(exc)
+            except exc.JsonPathNotFoundError as err:  # noqa: PERF203
+                self.issues[entity_yaml.file__].append(err)
 
     def _validate_should_be_hardcoded(self, entity_yaml: Entity, /) -> None:
         for json_path_str, hardcoded_value in self.should_be_hardcoded.items():
@@ -521,11 +511,11 @@ class ValidationConfig(Config):
                     default=const.INEQUAL,
                 )
             ) != hardcoded_value and (
-                ShouldBeHardcodedError.SUPPRESSION_COMMENT
+                exc.ShouldBeHardcodedError.SUPPRESSION_COMMENT
                 not in entity_yaml.suppressions__.get(json_path_str.split(".")[-1], ())
             ):
                 self.issues[entity_yaml.file__].append(
-                    ShouldBeHardcodedError(
+                    exc.ShouldBeHardcodedError(
                         json_path_str,
                         field_value,
                         hardcoded_value,
@@ -541,23 +531,26 @@ class ValidationConfig(Config):
 
             try:
                 get_json_value(entity_yaml, json_path_str)
-            except JsonPathNotFoundError as exc:
+            except exc.JsonPathNotFoundError as err:
                 self.issues[entity_yaml.file__].append(
-                    ShouldExistError(json_path_str, exc),
+                    exc.ShouldExistError(json_path_str, err),
                 )
 
     def _validate_should_match_filename(self, entity_yaml: Entity, /) -> None:
         """Validate that certain fields match the file name."""
-        if ShouldMatchFileNameError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
+        if exc.ShouldMatchFileNameError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
             "*",
             (),
         ):
             return
 
         for json_path_str in self.should_match_filename:
-            if ShouldMatchFileNameError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
-                json_path_str.split(".")[-1],
-                (),
+            if (
+                exc.ShouldMatchFileNameError.SUPPRESSION_COMMENT
+                in entity_yaml.suppressions__.get(
+                    json_path_str.split(".")[-1],
+                    (),
+                )
             ):
                 continue
             try:
@@ -571,24 +564,27 @@ class ValidationConfig(Config):
                     )
                 ) != entity_yaml.file__.with_suffix("").name.lower():
                     self.issues[entity_yaml.file__].append(
-                        ShouldMatchFileNameError(json_path_str, field_value, fmt_value),
+                        exc.ShouldMatchFileNameError(json_path_str, field_value, fmt_value),
                     )
-            except JsonPathNotFoundError:
+            except exc.JsonPathNotFoundError:
                 # Some entity types (e.g. sensor.systemmonitor) don't have certain fields
                 # (e.g. name). If it's required, it'll get picked up in the other checks.
                 continue
 
     def _validate_should_match_filepath(self, entity_yaml: Entity, /) -> None:
-        if ShouldMatchFilePathError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
+        if exc.ShouldMatchFilePathError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
             "*",
             (),
         ):
             return
 
         for json_path_str, config in self.should_match_filepath.items():
-            if ShouldMatchFilePathError.SUPPRESSION_COMMENT in entity_yaml.suppressions__.get(
-                json_path_str.split(".")[-1],
-                (),
+            if (
+                exc.ShouldMatchFilePathError.SUPPRESSION_COMMENT
+                in entity_yaml.suppressions__.get(
+                    json_path_str.split(".")[-1],
+                    (),
+                )
             ):
                 continue
 
@@ -600,9 +596,9 @@ class ValidationConfig(Config):
                     json_path_str,
                     valid_type=str,
                 ).lower()
-            except InvalidConfigurationError:
+            except exc.InvalidConfigurationError:
                 self.issues[entity_yaml.file__].append(
-                    ShouldMatchFilePathError(
+                    exc.ShouldMatchFilePathError(
                         json_path_str,
                         None,
                         expected_value,
@@ -630,14 +626,14 @@ class ValidationConfig(Config):
                     )
                 ):
                     self.issues[entity_yaml.file__].append(
-                        ShouldMatchFilePathError(
+                        exc.ShouldMatchFilePathError(
                             json_path_str,
                             actual_value,
                             expected_value,
                         ),
                     )
 
-    def validate_package(self) -> dict[Path, list[InvalidConfigurationError]]:
+    def validate_package(self) -> dict[Path, list[exc.InvalidConfigurationError]]:
         """Validate a package's YAML files.
 
         Each file is validated against Home Assistant's schema for that package, and
@@ -655,7 +651,7 @@ class ValidationConfig(Config):
                 validator(entity)
 
             if args.AUTOFIX and any(
-                isinstance(i, FixableConfigurationError)
+                isinstance(i, exc.FixableConfigurationError)
                 for i in self.issues.get(entity.file__, ())
             ):
                 entity.autofix_file_issues(self.issues[entity.file__])

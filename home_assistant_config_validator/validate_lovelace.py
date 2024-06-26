@@ -20,14 +20,12 @@ from wg_utilities.helpers.processor import JProc
 from home_assistant_config_validator.models import Package
 from home_assistant_config_validator.models.config import ValidationConfig
 from home_assistant_config_validator.utils import (
-    DeclutteringTemplateNotFoundError,
     Include,
-    InvalidConfigurationError,
     Secret,
-    UnusedFileError,
     args,
     const,
     entity_id_check_callback,
+    exc,
     format_output,
     load_yaml,
 )
@@ -79,7 +77,7 @@ class DashboardConfig(LovelaceConfig):
 
 def check_known_entity_usages(
     *,
-    all_issues: dict[Path, list[InvalidConfigurationError]],
+    all_issues: dict[Path, list[exc.InvalidConfigurationError]],
     config: dict[str, object],
     file: Path,
 ) -> None:
@@ -113,7 +111,7 @@ def check_known_entity_usages(
 
 def validate_decluttering_templates(
     *,
-    all_issues: dict[Path, list[InvalidConfigurationError]],
+    all_issues: dict[Path, list[exc.InvalidConfigurationError]],
     config: dict[str, object],
     lovelace_config: LovelaceConfig,
     file: Path,
@@ -127,7 +125,7 @@ def validate_decluttering_templates(
     def _val_decluttering_templates(
         _value_: str,
     ) -> None:
-        all_issues[file].append(DeclutteringTemplateNotFoundError(_value_))
+        all_issues[file].append(exc.DeclutteringTemplateNotFoundError(_value_))
 
     try:
         jproc = JProc.from_cache("validate_decluttering_templates")
@@ -177,7 +175,7 @@ def _get_unused_files_cb(
 
 def get_unused_files(
     *,
-    all_issues: dict[Path, list[InvalidConfigurationError]],
+    all_issues: dict[Path, list[exc.InvalidConfigurationError]],
     lovelace_config: LovelaceConfig,
     package_config: dict[str, object],
 ) -> list[tuple[Path, DashboardConfig]]:
@@ -223,7 +221,7 @@ def get_unused_files(
             and not file.is_relative_to(const.LOVELACE_ARCHIVE_DIR)
             and file != const.LOVELACE_ROOT_FILE
         ):
-            all_issues[file].append(UnusedFileError(file))
+            all_issues[file].append(exc.UnusedFileError(file))
 
     return dashboards
 
@@ -239,7 +237,7 @@ def main() -> bool:
     lovelace_config = LovelaceConfig(**llc)  # type: ignore[typeddict-item]
     package_config, _ = load_yaml(pkg.root_file, validate_content_type=dict[str, object])
 
-    all_issues: defaultdict[Path, list[InvalidConfigurationError]] = defaultdict(list)
+    all_issues: defaultdict[Path, list[exc.InvalidConfigurationError]] = defaultdict(list)
 
     dashboards = get_unused_files(
         all_issues=all_issues,

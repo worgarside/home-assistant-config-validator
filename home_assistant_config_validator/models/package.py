@@ -15,10 +15,9 @@ from wg_utilities.helpers.processor import JProc
 from home_assistant_config_validator.utils import (
     Entity,
     EntityGenerator,
-    PackageDefinitionError,
-    PackageNotFoundError,
     TagWithPath,
     const,
+    exc,
     load_yaml,
 )
 
@@ -59,7 +58,7 @@ class Package:
         if (instance := self.INSTANCES.get(self.pkg_name)) is None:
             self.INSTANCES[self.pkg_name] = self
         elif instance != self:
-            raise PackageDefinitionError(
+            raise exc.PackageDefinitionError(
                 const.PACKAGES_DIR.joinpath(self.pkg_name),
                 f"Can't have multiple packages with same name ({self.pkg_name})",
             )
@@ -103,7 +102,7 @@ class Package:
         ):
             return cls.parse_file(pkg_file)
 
-        raise PackageNotFoundError(const.PACKAGES_DIR.joinpath(name))
+        raise exc.PackageNotFoundError(const.PACKAGES_DIR.joinpath(name))
 
     @classmethod
     def get_packages(cls) -> Generator[Package, None, None]:
@@ -131,7 +130,7 @@ class Package:
                 name,
             )
         else:
-            raise PackageDefinitionError(
+            raise exc.PackageDefinitionError(
                 file,
                 f"invalid split keys { {str(k).split()[0] for k in package_config} }",
             )
