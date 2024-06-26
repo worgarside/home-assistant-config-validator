@@ -10,8 +10,8 @@ from home_assistant_config_validator.models.config import (
     ValidationConfig,
 )
 from home_assistant_config_validator.utils import (
-    InvalidConfigurationError,
     args,
+    exc,
     format_output,
 )
 from home_assistant_config_validator.utils.const import EXIT_1
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 def main() -> bool:
     """Validate all entities."""
-    all_issues: dict[str, dict[Path, list[InvalidConfigurationError]]] = {}
+    all_issues: dict[str, dict[Path, list[exc.InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
         if not pkg.entity_generators__:

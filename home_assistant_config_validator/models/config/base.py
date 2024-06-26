@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 
 from home_assistant_config_validator.models import Package  # noqa: TCH001
-from home_assistant_config_validator.utils import UserPCHConfigurationError, args, const
+from home_assistant_config_validator.utils import args, const, exc
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -98,12 +98,12 @@ class Config(BaseModel, ABC):
                 .get(package.pkg_name, {})
                 .get(cls.CONFIGURATION_TYPE)
             )
-        except Exception as exc:
-            raise UserPCHConfigurationError(
+        except Exception as err:
+            raise exc.UserPCHConfigurationError(
                 cls.CONFIGURATION_TYPE,
                 package.pkg_name,
-                repr(exc),
-            ) from exc
+                repr(err),
+            ) from err
 
         if not hasattr(cls, "GLOBAL_CONFIG"):
             cls.GLOBAL_CONFIG = cls._GLOBAL_CONFIG_CLASS.model_validate(
@@ -115,7 +115,7 @@ class Config(BaseModel, ABC):
             and args.VALIDATE_ALL_PACKAGES
             and package_config is None
         ):
-            raise UserPCHConfigurationError(
+            raise exc.UserPCHConfigurationError(
                 cls.CONFIGURATION_TYPE,
                 package.pkg_name,
                 "not found",

@@ -312,16 +312,16 @@ class MissingScriptFieldError(InvalidConfigurationError):
 
 __all__ = [
     "ConfigurationError",
-    "UserPCHConfigurationError",
-    "HomeAssistantConfigurationError",
+    "EntityDefinitionError",
     "FileContentError",
     "FileContentTypeError",
-    "EntityDefinitionError",
-    "MissingScriptFieldError",
-    "PackageNotFoundError",
-    "PackageDefinitionError",
-    "InvalidTemplateError",
+    "HomeAssistantConfigurationError",
     "InvalidEntityConsumedError",
+    "InvalidTemplateError",
     "InvalidTemplateVarError",
+    "MissingScriptFieldError",
+    "PackageDefinitionError",
+    "PackageNotFoundError",
     "UnexpectedScriptFieldError",
+    "UserPCHConfigurationError",
 ]
