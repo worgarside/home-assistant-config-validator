@@ -33,11 +33,13 @@ from home_assistant_config_validator.utils import (
     InvalidTemplateVarError,
     JsonPathNotFoundError,
     JSONPathStr,
+    MissingScriptFieldError,
     ShouldBeEqualError,
     ShouldBeHardcodedError,
     ShouldExistError,
     ShouldMatchFileNameError,
     ShouldMatchFilePathError,
+    UnexpectedScriptFieldError,
     args,
     const,
     get_json_value,
@@ -326,17 +328,13 @@ def _validate_script_consumption_inner(
         for name, config in script_fields.items():
             if config.get("required") is True and name not in variables:
                 issues.append(
-                    InvalidConfigurationError(
-                        f"Missing required field {name!r} for script {script_id!r}",
-                    ),
+                    MissingScriptFieldError(script_id=script_id, field=name),
                 )
 
-        if extra_script_kwargs := set(variables) - set(script_fields):
-            issues.append(
-                InvalidConfigurationError(
-                    f"Unexpected field(s) {extra_script_kwargs!r} for script {script_id!r}",
-                ),
-            )
+        issues.extend(
+            UnexpectedScriptFieldError(script_id=script_id, field=extra_field)
+            for extra_field in set(variables) - set(script_fields)
+        )
 
 
 class ValidationRule(StrEnum):
