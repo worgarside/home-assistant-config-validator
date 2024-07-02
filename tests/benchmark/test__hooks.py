@@ -26,6 +26,7 @@ def test_validate_entities(benchmark: BenchmarkFixture) -> None:
     benchmark(main)
 
 
+@pytest.mark.skip(reason="Not in use.")
 @pytest.mark.usefixtures("clean_repo")
 def test_validate_lovelace(benchmark: BenchmarkFixture) -> None:
     """Benchmark the `validate-lovelace` hook."""
