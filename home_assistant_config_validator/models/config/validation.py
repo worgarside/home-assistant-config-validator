@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from contextlib import suppress
-from enum import StrEnum
+from enum import StrEnum, auto
 from functools import lru_cache
 from logging import getLogger
 from pathlib import Path  # noqa: TCH003
@@ -337,8 +337,21 @@ class ValidationRule(StrEnum):
     SHOULD_MATCH_FILEPATH = "should_match_filepath"
 
 
+class ExtraRule(StrEnum):
+    """Extra rules that can be ran on the Home Assistant configuration."""
+
+    SELECTOR_IS_REQUIRED = auto()
+    """Require that a selector is declared for every field.
+
+    https://www.home-assistant.io/integrations/script/#selector
+    https://www.home-assistant.io/docs/blueprint/selectors
+    """
+
+
 class GlobalConfig(BaseModel):
     """Global configuration for the validator."""
+
+    extra_rules: dict[str, list[ExtraRule]] = Field(default_factory=dict)
 
     validate_domain_consumption: set[str] = Field(default_factory=set)
 
@@ -474,6 +487,15 @@ class ValidationConfig(Config):
         }[self.package.name]
 
         jproc.process(entity.get(sequence_key, []), issues=self.issues[entity.file__])
+
+    def _validate_selector_is_required(self, script: Entity, /) -> None:
+        for name, config in script.get("fields", {}).items():
+            if not (
+                isinstance(selector := config.get("selector"), dict) and len(selector) == 1
+            ):
+                self.issues[script.file__].append(
+                    exc.SelectorIsRequiredError(script.file__.stem, name),
+                )
 
     def _validate_should_be_equal(self, entity_yaml: Entity, /) -> None:
         for json_path_str_1, json_path_str_2 in self.should_be_equal:
@@ -646,9 +668,17 @@ class ValidationConfig(Config):
         """
         self.issues = defaultdict(list)
 
+        extra_validators = [
+            self._EXTRA_RULE_VALIDATORS[extra_rule]
+            for extra_rule in self.GLOBAL_CONFIG.extra_rules.get(self.package.name, [])
+        ]
+
         for entity in self.package.entities:
             for validator in self.validators:
                 validator(entity)
+
+            for extra_validator in extra_validators:
+                extra_validator(self, entity)
 
             if args.AUTOFIX and any(
                 isinstance(i, exc.FixableConfigurationError)
@@ -674,3 +704,9 @@ class ValidationConfig(Config):
                 self._validate_should_match_filepath,
             ),
         )
+
+    _EXTRA_RULE_VALIDATORS: ClassVar[
+        dict[ExtraRule, Callable[[ValidationConfig, Entity], None]]
+    ] = {
+        ExtraRule.SELECTOR_IS_REQUIRED: _validate_selector_is_required,
+    }

@@ -310,6 +310,14 @@ class MissingScriptFieldError(InvalidConfigurationError):
         )
 
 
+class SelectorIsRequiredError(InvalidConfigurationError):
+    """Raised when a selector is required but not found."""
+
+    def __init__(self, script_name: str, selector: str) -> None:
+        """Initialize the error."""
+        super().__init__(f"Selector missing for field `{selector}` in `script.{script_name}`")
+
+
 __all__ = [
     "ConfigurationError",
     "EntityDefinitionError",
