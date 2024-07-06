@@ -86,6 +86,6 @@ jobs:
         working-directory: home-assistant-config-validator
         run: poetry run python home_assistant_config_validator/validate_entities.py
 
-      # - name: Validate Lovelace
-      #   working-directory: home-assistant-config-validator
-      #   run: poetry run python home_assistant_config_validator/validate_lovelace.py
+      - name: Validate Lovelace
+        working-directory: home-assistant-config-validator
+        run: poetry run python home_assistant_config_validator/validate_lovelace.py
