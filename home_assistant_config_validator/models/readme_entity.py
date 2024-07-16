@@ -29,6 +29,14 @@ class ReadmeEntity:
 
     MDI_ICON_PATTERN: Final[re.Pattern[str]] = re.compile(r"^mdi:(\w+-?)*\w+$")
 
+    @staticmethod
+    def __json_encoder(obj: object, /) -> str:
+        """Encode an object to JSON."""
+        if isinstance(obj, Secret):
+            return obj.get_fake_value()
+
+        return str(obj)
+
     @classmethod
     def get_for_package(
         cls,
@@ -39,8 +47,8 @@ class ReadmeEntity:
         for entity in package.entities:
             yield cls(entity=entity, package=package)
 
-    @staticmethod
     def markdown_format(
+        self,
         __v: str | object,
         /,
         *,
@@ -53,7 +61,7 @@ class ReadmeEntity:
 
         if isinstance(__v, (dict, list, bool)):
             language = "json"  # Won't matter if __v is a bool
-            __v = dumps(__v, indent=2)
+            __v = dumps(__v, indent=2, default=self.__json_encoder)
             code = True
         elif isinstance(__v, str) and (
             ("{{" in __v and "}}" in __v) or ("{%" in __v and "%}" in __v)
