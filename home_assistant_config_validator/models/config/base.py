@@ -89,7 +89,7 @@ class Config(BaseModel, ABC):
     def get_for_package(cls, package: Package, /) -> Self:
         """Get the user's configuration for a given package."""
         if (pkg := cls.INSTANCES[cls.CONFIGURATION_TYPE].get(package)) is not None:
-            return pkg  # type: ignore[return-value]
+            return pkg
 
         try:
             package_config = (
