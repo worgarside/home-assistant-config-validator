@@ -78,7 +78,7 @@ class Config(BaseModel, ABC):
     )
 
     GLOBAL_CONFIG: ClassVar[BaseModel]
-    _GLOBAL_CONFIG_CLASS: ClassVar[type[BaseModel]]
+    GLOBAL_CONFIG_CLASS: ClassVar[type[BaseModel]]
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         arbitrary_types_allowed=True,
@@ -106,7 +106,7 @@ class Config(BaseModel, ABC):
             ) from err
 
         if not hasattr(cls, "GLOBAL_CONFIG"):
-            cls.GLOBAL_CONFIG = cls._GLOBAL_CONFIG_CLASS.model_validate(
+            cls.GLOBAL_CONFIG = cls.GLOBAL_CONFIG_CLASS.model_validate(
                 cls.user_configuration().get(cls.CONFIGURATION_TYPE.lower(), {}),
             )
 
