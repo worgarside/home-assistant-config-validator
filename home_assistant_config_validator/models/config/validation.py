@@ -364,7 +364,7 @@ class ValidationConfig(Config):
     )
 
     GLOBAL_CONFIG: ClassVar[GlobalConfig]
-    _GLOBAL_CONFIG_CLASS: ClassVar[type[GlobalConfig]] = GlobalConfig
+    GLOBAL_CONFIG_CLASS: ClassVar[type[GlobalConfig]] = GlobalConfig
 
     KNOWN_ENTITY_IDS: ClassVar[set[str]]
 

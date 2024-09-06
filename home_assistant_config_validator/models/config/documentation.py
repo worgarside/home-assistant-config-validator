@@ -29,7 +29,7 @@ class DocumentationConfig(Config):
         const.ConfigurationType.DOCUMENTATION
     )
 
-    _GLOBAL_CONFIG_CLASS: ClassVar[type[GlobalConfig]] = GlobalConfig
+    GLOBAL_CONFIG_CLASS: ClassVar[type[GlobalConfig]] = GlobalConfig
 
     description: str | None = Field(default=None)
     name: str = Field(default="name")
