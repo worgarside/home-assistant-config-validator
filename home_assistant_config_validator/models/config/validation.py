@@ -8,7 +8,7 @@ from contextlib import suppress
 from enum import StrEnum, auto
 from functools import lru_cache
 from logging import getLogger
-from pathlib import Path  # noqa: TCH003
+from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from jinja2 import Environment, TemplateError, meta

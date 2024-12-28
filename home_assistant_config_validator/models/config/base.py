@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar, Self
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 
-from home_assistant_config_validator.models import Package  # noqa: TCH001
+from home_assistant_config_validator.models import Package  # noqa: TC001
 from home_assistant_config_validator.utils import args, const, exc
 
 if TYPE_CHECKING:
