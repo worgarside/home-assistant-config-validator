@@ -126,7 +126,8 @@ class Config(BaseModel, ABC):
     @staticmethod
     @lru_cache
     def user_configuration() -> dict[
-        str, dict[str, dict[const.ConfigurationType, dict[str, object]]],
+        str,
+        dict[str, dict[const.ConfigurationType, dict[str, object]]],
     ]:
         """Return the user's PCH configuration."""
         if not args.PCH_CONFIG.exists():
