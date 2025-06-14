@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "home-assistant-config-validator"
-version = "4.3.2"
+version = "4.3.3"
 description = "Custom validator for my Home Assistant configuration"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"
