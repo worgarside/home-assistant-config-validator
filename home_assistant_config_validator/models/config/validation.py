@@ -388,8 +388,8 @@ class ValidationConfig(Config):
         default_factory=dict,
     )
 
-    issues: dict[Path, list[exc.InvalidConfigurationError]] = Field(
-        default_factory=lambda: defaultdict(list),
+    issues: defaultdict[Path, list[exc.InvalidConfigurationError]] = Field(
+        default_factory=lambda: defaultdict(list),  # type: ignore[arg-type]
     )
 
     invalid_template_variables: Annotated[

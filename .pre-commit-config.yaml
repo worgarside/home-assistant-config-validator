@@ -24,7 +24,7 @@ repos:
         additional_dependencies:
           - jinja2==3.1.6
           - jsonpath-ng==1.7.0
-          - pydantic[mypy]==2.9.2
+          - pydantic[mypy]==2.11.7
           - ruamel-yaml==0.18.14
           - wg-utilities==5.17.1
           - pytest==8.3.3
