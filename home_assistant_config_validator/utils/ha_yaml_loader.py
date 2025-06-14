@@ -345,8 +345,7 @@ class Secret(Tag[str]):
             )
 
         raise ValueError(  # noqa: TRY003
-            f"Secret {self.secret_id!r} not found in"
-            f" {self.FAKE_SECRETS_PATH.as_posix()!r}",
+            f"Secret {self.secret_id!r} not found in {self.FAKE_SECRETS_PATH.as_posix()!r}",
         )
 
 
@@ -692,7 +691,7 @@ def load_yaml(
     with path.open(encoding="utf-8") as fin:
         raw = fin.read()
 
-        content = cast(F, HAYamlLoader.load(raw))
+        content = cast("F", HAYamlLoader.load(raw))
 
         comments_in_file = "# hacv " in raw
 
