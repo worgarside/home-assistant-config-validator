@@ -159,6 +159,7 @@ JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
     "wait",
     "area_entities",
     "expand",
+    "abs",
 }
 
 
