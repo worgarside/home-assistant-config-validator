@@ -128,6 +128,7 @@ JINJA_FILTERS: Final[tuple[str, ...]] = (
     "bool",
     "version",
     "contains",
+    "abs",
 )
 
 JINJA_TESTS: Final[tuple[str, ...]] = (
