@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar, Self
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 
-from home_assistant_config_validator.models import Package  # noqa: TCH001
+from home_assistant_config_validator.models import Package  # noqa: TC001
 from home_assistant_config_validator.utils import args, const, exc
 
 if TYPE_CHECKING:
@@ -125,9 +125,10 @@ class Config(BaseModel, ABC):
 
     @staticmethod
     @lru_cache
-    def user_configuration() -> (
-        dict[str, dict[str, dict[const.ConfigurationType, dict[str, object]]]]
-    ):
+    def user_configuration() -> dict[
+        str,
+        dict[str, dict[const.ConfigurationType, dict[str, object]]],
+    ]:
         """Return the user's PCH configuration."""
         if not args.PCH_CONFIG.exists():
             LOGGER.warning(
