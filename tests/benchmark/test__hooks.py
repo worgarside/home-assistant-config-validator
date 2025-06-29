@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from pytest_codspeed.plugin import BenchmarkFixture  # type: ignore[import-untyped]
+    from pytest_codspeed.plugin import BenchmarkFixture
 
 
 @pytest.mark.usefixtures("clean_repo")
