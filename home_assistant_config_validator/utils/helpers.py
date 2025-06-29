@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from . import const
 from .exception import (
@@ -15,6 +15,32 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 LOGGER = getLogger(__name__)
+
+
+def fmt_str(
+    v: object,
+    /,
+    *fmt_opts: Literal["bold", "italic", "red", "green", "amber", "blue", "cyan"],
+) -> str:
+    s = str(v)
+    codes = {
+        "bold": "\033[1m",
+        "italic": "\033[3m",
+        "red": "\033[31m",
+        "green": "\033[32m",
+        "amber": "\033[33m",
+        "blue": "\033[34m",
+        "cyan": "\033[36m",
+        "reset": "\033[0m",
+    }
+
+    for fmt_opt in fmt_opts:
+        s = f"{codes[fmt_opt]}{s!s}"
+
+    if s.endswith(codes["reset"]):
+        return s
+
+    return f"{s}{codes['reset']}"
 
 
 def format_output(
@@ -32,32 +58,6 @@ def format_output(
     Raises:
         TypeError: If `data` is not a dict or list
     """
-
-    def fmt_str(
-        v: Any,
-        /,
-        *fmt_opts: Literal["bold", "italic", "red", "green", "amber", "blue", "cyan"],
-    ) -> str:
-        s = str(v)
-        codes = {
-            "bold": "\033[1m",
-            "italic": "\033[3m",
-            "red": "\033[31m",
-            "green": "\033[32m",
-            "amber": "\033[33m",
-            "blue": "\033[34m",
-            "cyan": "\033[36m",
-            "reset": "\033[0m",
-        }
-
-        for fmt_opt in fmt_opts:
-            s = f"{codes[fmt_opt]}{s!s}"
-
-        if s.endswith(codes["reset"]):
-            return s
-
-        return f"{s}{codes['reset']}"
-
     fixable_indicator = f"[{fmt_str('*', 'cyan')}]"
 
     output_lines = []
