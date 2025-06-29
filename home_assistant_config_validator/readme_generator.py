@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 from logging import getLogger
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Final, Self
 
 from home_assistant_config_validator.models import Package, ReadmeEntity
 from home_assistant_config_validator.utils import args, const
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 
-NEWLINE: Final[Literal["\n"]] = "\n"
+NEWLINE: Final = "\n"
 
 
 class Readme:
@@ -86,7 +86,7 @@ class Readme:
         for line in lines:
             self.write_line(line)
 
-    def __enter__(self) -> Readme:
+    def __enter__(self) -> Self:
         """Open the file for writing."""
         self._fout = self.PATH.open("w", encoding="utf-8")
         return self
@@ -103,7 +103,7 @@ class Readme:
         if exc_type is not None:
             LOGGER.error(
                 "Error occurred while writing README",
-                exc_info=(exc_type, exc_value, traceback),  # type: ignore[arg-type]
+                exc_info=(exc_type, exc_value, traceback),  # type: ignore[arg-type]  # noqa: LOG014
             )
         else:
             LOGGER.info("README generated at %s", self.PATH)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Final, Literal, TypedDict
+from typing import TYPE_CHECKING, Final, TypedDict
 
 from jinja2.defaults import (
     BLOCK_END_STRING,
@@ -34,8 +34,8 @@ from home_assistant_config_validator.utils.exception import InvalidEntityConsume
 if TYPE_CHECKING:
     from pathlib import Path
 
-VAR_TEMPLATE_BLOCK_START_STRING: Final[Literal["[["]] = "[["
-VAR_TEMPLATE_BLOCK_END_STRING: Final[Literal["]]"]] = "]]"
+VAR_TEMPLATE_BLOCK_START_STRING: Final = "[["
+VAR_TEMPLATE_BLOCK_END_STRING: Final = "]]"
 
 
 class Card(TypedDict):

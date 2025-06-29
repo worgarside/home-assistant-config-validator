@@ -6,14 +6,14 @@ import re
 from enum import StrEnum
 from os import getenv
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final
 from uuid import uuid4
 
 EXIT_1: Final[bool] = getenv("EXIT_1", "1") == "1"
 
 REPO_PATH = Path(getenv("HA_REPO_PATH", Path.cwd()))
 
-EXT: Final[Literal[".yaml"]] = ".yaml"
+EXT: Final = ".yaml"
 GLOB_PATTERN: Final[str] = f"*{EXT}"
 
 ENTITIES_DIR: Final[Path] = REPO_PATH / "entities"

@@ -20,7 +20,7 @@ class ConfigurationError(Exception):
 class FileIOError(IOError):
     """Raised when a file I/O error is detected."""
 
-    def __init__(self, file_path: Path, operation: str):
+    def __init__(self, file_path: Path, operation: str) -> None:
         super().__init__(
             f"{operation} failed for file: {file_path.relative_to(const.REPO_PATH)}",
         )

@@ -130,14 +130,14 @@ class ShouldMatchFilepathItem(BaseModel):
 
 
 @lru_cache
-def _get_variable_setter_pattern(__var: str) -> re.Pattern[str]:
+def _get_variable_setter_pattern(_var: str) -> re.Pattern[str]:
     r"""Create a regex pattern to match a Jinja2 variable setter.
 
     Example:
         >>> _get_variable_setter_pattern("var")
         Pattern(r'{{% set var = ')  # but with flexible whitespace
     """
-    return re.compile(rf"{{%\s*set\s*{re.escape(__var)}\s*=.+")
+    return re.compile(rf"{{%\s*set\s*{re.escape(_var)}\s*=.+")
 
 
 @lru_cache

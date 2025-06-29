@@ -146,7 +146,7 @@ class Entity(BaseModel):
         return cls.model_validate(file_content)
 
     @staticmethod
-    def get_suppressions(
+    def get_suppressions(  # noqa: C901
         node: CommentedBase | JSONObj,
     ) -> dict[str, dict[str, Collection[str]]]:
         """Search for HACV comments in a YAML file."""
@@ -405,7 +405,7 @@ class TagWithPath(Tag[ResToPath], Generic[F, ResToPath]):
 
             if not isinstance(file_content, self.FILE_CONTENT_TYPE):
                 raise TypeError(  # noqa: TRY003
-                    f"File {file} contains a {type(file_content)}, but"
+                    f"File {file.as_posix()} contains a {type(file_content)}, but"
                     f"`{self.TAG}` expects each file to contain a {self.FILE_CONTENT_TYPE}",
                 )
 
@@ -713,7 +713,7 @@ def load_yaml(
             jproc = JProc.from_cache("attach_file_to_tag")
         except CacheIdNotFoundError:
             jproc = JProc(
-                {TagWithPath: TagWithPath._attach_file_to_tag},
+                {TagWithPath: TagWithPath._attach_file_to_tag},  # noqa: SLF001
                 identifier="attach_file_to_tag",
                 process_type_changes=True,
                 process_pydantic_extra_fields=True,
