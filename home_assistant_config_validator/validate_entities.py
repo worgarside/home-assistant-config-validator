@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 def main() -> bool:
     """Validate all entities."""
+    args.parse_arguments()
     all_issues: dict[str, dict[Path, list[exc.InvalidConfigurationError]]] = {}
 
     for pkg in Package.get_packages():
@@ -39,5 +40,4 @@ def main() -> bool:
 
 
 if __name__ == "__main__":
-    args.parse_arguments()
     sys.exit(main())
