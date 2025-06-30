@@ -103,7 +103,7 @@ class Readme:
         if exc_type is not None:
             LOGGER.error(
                 "Error occurred while writing README",
-                exc_info=(exc_type, exc_value, traceback),  # type: ignore[arg-type]  # noqa: LOG014
+                exc_info=(exc_type, exc_value, traceback),  # type: ignore[arg-type]
             )
         else:
             LOGGER.info("README generated at %s", self.PATH)
