@@ -16,7 +16,7 @@ validate-lovelace = "home_assistant_config_validator.validate_lovelace:main"
 python = "^3.12"
 jsonpath-ng = "^1.7.0"
 pydantic = "^2.11.7"
-ruamel-yaml = "^0.18.14"
+ruamel-yaml = "^0.18.15"
 jinja2 = "^3.1.6"
 wg-utilities = { extras = ["logging"], version = "^5.17.4" }
 
