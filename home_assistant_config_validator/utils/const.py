@@ -129,6 +129,7 @@ JINJA_FILTERS: Final[tuple[str, ...]] = (
     "version",
     "contains",
     "abs",
+    "expand",
 )
 
 JINJA_TESTS: Final[tuple[str, ...]] = (
@@ -160,6 +161,8 @@ JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
     "area_entities",
     "expand",
     "abs",
+    "label_entities",
+    "slugify",
 }
 
 
