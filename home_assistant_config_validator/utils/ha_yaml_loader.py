@@ -799,7 +799,7 @@ def get_json_value(
     json_obj: Entity,
     json_path: JSONPathStr,
     /,
-    valid_type: Literal[None] = None,
+    valid_type: None = None,
     default: object = ...,
 ) -> object: ...
 
