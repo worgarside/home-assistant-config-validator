@@ -24,7 +24,7 @@ jobs:
       HA_REPO_PATH: ${{ github.workspace }}/home-assistant
     steps:
       - name: Clone Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: home-assistant-config-validator
           ref: ${{ github.ref}}
@@ -43,7 +43,7 @@ jobs:
         # yamllint enable rule:line-length
 
       - name: Clone Home Assistant Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: home-assistant
           ref: ${{ steps.ha-tag.outputs.tag }}
