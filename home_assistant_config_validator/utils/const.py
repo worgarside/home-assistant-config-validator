@@ -140,30 +140,34 @@ JINJA_TESTS: Final[tuple[str, ...]] = (
     "list",
 )
 
-JINJA_VARS: Final[set[str]] = JINJA_ENTITY_CONSUMERS | {
-    "as_timestamp",
-    "distance",
-    "float",
-    "iif",
-    "is_number",
-    "max",
-    "min",
-    "now",
-    "null",
-    "repeat",
-    "this",
-    "timedelta",
-    "today_at",
-    "trigger",
-    "utcnow",
-    "value_json",
-    "wait",
-    "area_entities",
-    "expand",
-    "abs",
-    "label_entities",
-    "slugify",
-}
+JINJA_VARS: Final[set[str]] = (
+    JINJA_ENTITY_CONSUMERS
+    | set(JINJA_FILTERS)
+    | {
+        "as_timestamp",
+        "distance",
+        "float",
+        "iif",
+        "is_number",
+        "max",
+        "min",
+        "now",
+        "null",
+        "repeat",
+        "this",
+        "timedelta",
+        "today_at",
+        "trigger",
+        "utcnow",
+        "value_json",
+        "wait",
+        "area_entities",
+        "expand",
+        "abs",
+        "label_entities",
+        "slugify",
+    }
+)
 
 
 class ConfigurationType(StrEnum):
