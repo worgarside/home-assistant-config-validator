@@ -80,7 +80,7 @@ class Package:
 
         common_parts = []
         zipped_parts: tuple[str, ...]
-        for zipped_parts in zip(*parts):
+        for zipped_parts in zip(*parts, strict=False):
             if len(set(zipped_parts)) != 1:
                 break
 
