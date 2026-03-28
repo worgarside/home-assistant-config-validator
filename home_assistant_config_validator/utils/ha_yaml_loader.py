@@ -80,7 +80,7 @@ def entity_id_check_callback(
     if matched := const.ENTITY_ID_PATTERN.fullmatch(_value_):
         domain, id_ = matched.groups()
 
-        if not (id_ in const.COMMON_SERVICES and domain in const.COMMON_SERVICES[id_]):
+        if not (id_ in const.COMMON_ACTIONS and domain in const.COMMON_ACTIONS[id_]):
             entity_ids.add((str(_loc_ or "") if _obj_type_ is dict else "", _value_))
 
 
