@@ -194,8 +194,9 @@ def get_consumed_entity_ids(template: TemplateNode) -> set[str]:
             {
                 Call: JProc.cb(
                     _inner,
-                    item_filter=lambda item, **_: getattr(item.node, "name", None)
-                    in const.JINJA_ENTITY_CONSUMERS,
+                    item_filter=lambda item, **_: (
+                        getattr(item.node, "name", None) in const.JINJA_ENTITY_CONSUMERS
+                    ),
                 ),
             },
             identifier="jinja_template_consumed_entities",
@@ -474,8 +475,9 @@ class ValidationConfig(Config):
                 {
                     dict: JProc.cb(
                         _validate_script_consumption_inner,
-                        item_filter=lambda item, **_: item.get("service", "").split(".")[0]
-                        == "script",
+                        item_filter=lambda item, **_: (
+                            item.get("service", "").split(".")[0] == "script"
+                        ),
                     ),
                 },
                 identifier="script_consumption",
