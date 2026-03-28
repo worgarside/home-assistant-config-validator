@@ -102,7 +102,7 @@ def check_known_entity_usages(
     while entity_ids:
         dict_key, entity_id = entity_ids.pop()
 
-        if dict_key not in ("entity", "entity_id", "service"):
+        if dict_key not in ("entity", "entity_id", "action"):
             continue
 
         if entity_id not in ValidationConfig.KNOWN_ENTITY_IDS:

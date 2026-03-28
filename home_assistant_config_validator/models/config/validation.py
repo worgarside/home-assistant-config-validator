@@ -294,12 +294,12 @@ def _validate_script_consumption_inner(
     _value_: dict[str, Any],
     issues: list[exc.InvalidConfigurationError],
 ) -> None:
-    if _value_["service"] == "script.turn_off":
+    if _value_["action"] == "script.turn_off":
         return
 
     variables = _value_.get("data", {})
 
-    if _value_["service"] in {"script.toggle", "script.turn_on"}:
+    if _value_["action"] in {"script.toggle", "script.turn_on"}:
         variables = variables.get("variables", {})
         entity_id: str | list[str] = _value_.get("target", {}).get("entity_id") or _value_.get(
             "data",
@@ -308,7 +308,7 @@ def _validate_script_consumption_inner(
 
         script_ids = entity_id if isinstance(entity_id, list) else [entity_id]
     else:
-        script_ids = [_value_["service"]]
+        script_ids = [_value_["action"]]
 
     for script_id in script_ids:
         if not (script_fields := _get_script_fields().get(script_id.removeprefix("script."))):
@@ -476,7 +476,7 @@ class ValidationConfig(Config):
                     dict: JProc.cb(
                         _validate_script_consumption_inner,
                         item_filter=lambda item, **_: (
-                            item.get("service", "").split(".")[0] == "script"
+                            item.get("action", "").split(".")[0] == "script"
                         ),
                     ),
                 },
