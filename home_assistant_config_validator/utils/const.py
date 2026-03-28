@@ -31,7 +31,7 @@ ENTITY_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 
 
-COMMON_SERVICES: Final[dict[str, set[str]]] = {
+COMMON_ACTIONS: Final[dict[str, set[str]]] = {
     "decrement": {"input_number"},
     "increment": {"input_number"},
     "pause": {"media_player"},
@@ -193,7 +193,7 @@ class Inequal:
 INEQUAL = Inequal()
 
 __all__ = [
-    "COMMON_SERVICES",
+    "COMMON_ACTIONS",
     "ENTITIES_DIR",
     "INEQUAL",
     "JINJA_VARS",
