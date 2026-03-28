@@ -23,7 +23,7 @@ repos:
           - --show-error-codes
         additional_dependencies:
           - jinja2==3.1.6
-          - jsonpath-ng==1.7.0
+          - jsonpath-ng==1.8.0
           - pydantic[mypy]==2.12.5
           - ruamel-yaml==0.18.16
           - wg-utilities==5.17.4
